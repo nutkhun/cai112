@@ -112,7 +112,7 @@ export const StudentDashboard = () => {
                 <Users className="w-5 h-5 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="font-display font-bold text-lg">CSI200 Student Management System (SMS)</h1>
+                <h1 className="font-display font-bold text-lg">CAI112 Student Management System (SMS)</h1>
                 
               </div>
             </div>
