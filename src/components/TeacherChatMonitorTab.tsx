@@ -70,7 +70,7 @@ export const TeacherChatMonitorTab = () => {
   const [deleting, setDeleting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const sections = ['257A'];
+  const sections = ['457A'];
 
   // Fetch group stats on mount
   useEffect(() => {
