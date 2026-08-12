@@ -1,10 +1,10 @@
-# CSI200
+# CAI112
 
 create a web app that help my students to choose their peers and group them together with the creation of group name. the group members can be no more than 5 people. students needs to provide their name and ID before going to the process of choosing their friends to be in their groups. student is already assigned in the group or was chosen to be in a group will not be available for others to choose. Student can choose to leave the group and join another group. Teacher can view the group name and student member info and can be downloaded in to xlsx format
 
 This project was built with [Lovable](https://lovable.dev).
 
-**Live app**: https://csi200.lovable.app
+**Live app**: https://cai112.lovable.app
 
 ## Build with Lovable
 
