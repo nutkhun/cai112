@@ -44,7 +44,7 @@ export const AbsenceRequestsTab = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'date' | 'name' | 'submitted'>('submitted');
 
-  const sections = ['257A'];
+  const sections = ['457A'];
 
   useEffect(() => {
     fetchAbsenceRequests();
