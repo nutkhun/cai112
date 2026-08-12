@@ -6,100 +6,100 @@
 
 @layer base {
   :root {
-    --background: 35 35% 90%;
-    --foreground: 0 0% 10%;
+    --background: 180 25% 96%;
+    --foreground: 222 25% 12%;
 
-    --card: 35 30% 94%;
-    --card-foreground: 0 0% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 25% 12%;
 
-    --popover: 35 30% 94%;
-    --popover-foreground: 0 0% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 25% 12%;
 
-    --primary: 25 55% 35%;
-    --primary-foreground: 35 30% 95%;
+    --primary: 174 62% 33%;
+    --primary-foreground: 180 30% 97%;
 
-    --secondary: 35 25% 85%;
-    --secondary-foreground: 0 0% 15%;
+    --secondary: 180 20% 90%;
+    --secondary-foreground: 222 25% 15%;
 
-    --muted: 35 20% 88%;
-    --muted-foreground: 0 0% 35%;
+    --muted: 180 18% 92%;
+    --muted-foreground: 215 15% 40%;
 
-    --accent: 20 60% 30%;
-    --accent-foreground: 35 30% 95%;
+    --accent: 243 55% 45%;
+    --accent-foreground: 240 30% 97%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 71% 45%;
+    --success: 158 64% 40%;
     --success-foreground: 0 0% 100%;
 
-    --border: 30 25% 80%;
-    --input: 30 25% 80%;
-    --ring: 25 55% 35%;
+    --border: 180 16% 84%;
+    --input: 180 16% 84%;
+    --ring: 174 62% 33%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 35 30% 92%;
-    --sidebar-foreground: 0 0% 15%;
-    --sidebar-primary: 25 55% 35%;
-    --sidebar-primary-foreground: 35 30% 95%;
-    --sidebar-accent: 35 25% 86%;
-    --sidebar-accent-foreground: 0 0% 10%;
-    --sidebar-border: 30 25% 80%;
-    --sidebar-ring: 25 55% 35%;
+    --sidebar-background: 180 22% 94%;
+    --sidebar-foreground: 222 20% 18%;
+    --sidebar-primary: 174 62% 33%;
+    --sidebar-primary-foreground: 180 30% 97%;
+    --sidebar-accent: 243 40% 92%;
+    --sidebar-accent-foreground: 243 45% 25%;
+    --sidebar-border: 180 16% 84%;
+    --sidebar-ring: 174 62% 33%;
 
     /* Custom tokens */
-    --gradient-primary: linear-gradient(135deg, hsl(25 55% 35%), hsl(20 50% 40%));
-    --gradient-accent: linear-gradient(135deg, hsl(20 60% 30%), hsl(15 55% 35%));
-    --gradient-card: linear-gradient(180deg, hsl(35 30% 94%), hsl(35 28% 91%));
+    --gradient-primary: linear-gradient(135deg, hsl(174 62% 33%), hsl(190 60% 38%));
+    --gradient-accent: linear-gradient(135deg, hsl(243 55% 45%), hsl(262 52% 50%));
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(180 25% 97%));
     --shadow-soft: 0 4px 20px -4px hsl(0 0% 0% / 0.1);
     --shadow-elevated: 0 12px 40px -8px hsl(0 0% 0% / 0.15);
   }
 
   .dark {
-    --background: 25 15% 10%;
-    --foreground: 35 25% 92%;
+    --background: 222 30% 9%;
+    --foreground: 180 20% 92%;
 
-    --card: 25 12% 14%;
-    --card-foreground: 35 25% 92%;
+    --card: 222 26% 13%;
+    --card-foreground: 180 20% 92%;
 
-    --popover: 25 12% 14%;
-    --popover-foreground: 35 25% 92%;
+    --popover: 222 26% 13%;
+    --popover-foreground: 180 20% 92%;
 
-    --primary: 30 50% 45%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 174 58% 45%;
+    --primary-foreground: 222 30% 10%;
 
-    --secondary: 25 12% 18%;
-    --secondary-foreground: 35 25% 92%;
+    --secondary: 222 20% 18%;
+    --secondary-foreground: 180 20% 92%;
 
-    --muted: 25 10% 20%;
-    --muted-foreground: 35 15% 55%;
+    --muted: 222 18% 20%;
+    --muted-foreground: 200 12% 62%;
 
-    --accent: 25 55% 40%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 243 60% 62%;
+    --accent-foreground: 222 30% 10%;
 
     --destructive: 0 62.8% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 71% 45%;
+    --success: 158 60% 45%;
     --success-foreground: 0 0% 100%;
 
-    --border: 25 10% 22%;
-    --input: 25 10% 22%;
-    --ring: 30 50% 45%;
+    --border: 222 16% 24%;
+    --input: 222 16% 24%;
+    --ring: 174 58% 45%;
 
-    --sidebar-background: 25 12% 12%;
-    --sidebar-foreground: 35 20% 88%;
-    --sidebar-primary: 30 50% 45%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 25 10% 18%;
-    --sidebar-accent-foreground: 35 20% 88%;
-    --sidebar-border: 25 10% 20%;
-    --sidebar-ring: 30 50% 45%;
+    --sidebar-background: 222 26% 11%;
+    --sidebar-foreground: 180 18% 88%;
+    --sidebar-primary: 174 58% 45%;
+    --sidebar-primary-foreground: 222 30% 10%;
+    --sidebar-accent: 222 18% 18%;
+    --sidebar-accent-foreground: 180 18% 88%;
+    --sidebar-border: 222 16% 22%;
+    --sidebar-ring: 174 58% 45%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(30 50% 45%), hsl(25 45% 50%));
-    --gradient-accent: linear-gradient(135deg, hsl(25 55% 40%), hsl(20 50% 45%));
-    --gradient-card: linear-gradient(180deg, hsl(25 12% 14%), hsl(25 12% 16%));
+    --gradient-primary: linear-gradient(135deg, hsl(174 58% 45%), hsl(190 55% 48%));
+    --gradient-accent: linear-gradient(135deg, hsl(243 60% 62%), hsl(262 55% 62%));
+    --gradient-card: linear-gradient(180deg, hsl(222 26% 13%), hsl(222 26% 15%));
     --shadow-soft: 0 4px 20px -4px hsl(0 0% 0% / 0.3);
     --shadow-elevated: 0 12px 40px -8px hsl(0 0% 0% / 0.4);
   }
@@ -119,28 +119,28 @@
     font-family: 'Space Grotesk', sans-serif;
   }
 
-  /* Global default scrollbar - brown accent */
+  /* Global default scrollbar - teal accent */
   ::-webkit-scrollbar {
     width: 14px;
     height: 14px;
   }
 
   ::-webkit-scrollbar-track {
-    background: hsl(35 30% 88%);
+    background: hsl(180 20% 90%);
   }
 
   ::-webkit-scrollbar-thumb {
-    background: hsl(25 40% 55%);
+    background: hsl(174 40% 45%);
     border-radius: 7px;
-    border: 3px solid hsl(35 30% 88%);
+    border: 3px solid hsl(180 20% 90%);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: hsl(25 45% 45%);
+    background: hsl(174 50% 35%);
   }
 
   ::-webkit-scrollbar-button:single-button {
-    background: hsl(35 30% 88%);
+    background: hsl(180 20% 90%);
     display: block;
     height: 14px;
     width: 14px;
@@ -160,13 +160,13 @@
 
   ::-webkit-scrollbar-button:single-button:vertical:decrement:hover,
   ::-webkit-scrollbar-button:single-button:vertical:increment:hover {
-    background-color: hsl(35 25% 82%);
+    background-color: hsl(180 18% 84%);
   }
 
   /* Firefox global scrollbar */
   * {
     scrollbar-width: auto;
-    scrollbar-color: hsl(25 40% 55%) hsl(35 30% 88%);
+    scrollbar-color: hsl(174 40% 45%) hsl(180 20% 90%);
   }
 }
 
