@@ -41,6 +41,11 @@ function bindValue(value) {
   return value;
 }
 
+function bindAll(stmt, binds) {
+  if (!binds || binds.length === 0) return stmt;
+  return stmt.bind.apply(stmt, binds);
+}
+
 function decodeRow(table, row) {
   const cols = JSON_COLUMNS[table];
   if (!row || !cols) return row;
@@ -143,14 +148,14 @@ async function handleDb(request, env) {
       if (body.count) {
         const countBinds = [];
         const countWhere = whereClause(body.filters, countBinds);
-        const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM ' + quoted + countWhere).bind.apply(null, countBinds).first();
+        const row = await bindAll(env.DB.prepare('SELECT COUNT(*) AS n FROM ' + quoted + countWhere), countBinds).first();
         count = row ? Number(row.n) : 0;
         if (body.head) return json({ data: null, count: count });
       }
       const binds = [];
       let sql = 'SELECT ' + selectList(body.columns) + ' FROM ' + quoted + whereClause(body.filters, binds) + orderClause(body.order);
       if (body.limit !== null && body.limit !== undefined) sql += ' LIMIT ' + Number(body.limit);
-      const result = await env.DB.prepare(sql).bind.apply(null, binds).all();
+      const result = await bindAll(env.DB.prepare(sql), binds).all();
       const rows = (result.results || []).map(function (r) { return decodeRow(table, r); });
       return json({ data: rows, count: count });
     }
@@ -171,7 +176,7 @@ async function handleDb(request, env) {
           sql += ' ON CONFLICT (' + conflict.map(ident).join(', ') + ') DO ' + (assignments.length ? 'UPDATE SET ' + assignments.join(', ') : 'NOTHING');
         }
         sql += ' RETURNING *';
-        const result = await env.DB.prepare(sql).bind.apply(null, binds).all();
+        const result = await bindAll(env.DB.prepare(sql), binds).all();
         const stored = (result.results || [])[0];
         if (stored) saved.push(decodeRow(table, stored));
       }
@@ -185,7 +190,7 @@ async function handleDb(request, env) {
       const cols = Object.keys(record);
       const binds = cols.map(function (c) { return bindValue(record[c]); });
       const sql = 'UPDATE ' + quoted + ' SET ' + cols.map(function (c) { return ident(c) + ' = ?'; }).join(', ') + whereClause(body.filters, binds) + ' RETURNING *';
-      const result = await env.DB.prepare(sql).bind.apply(null, binds).all();
+      const result = await bindAll(env.DB.prepare(sql), binds).all();
       const rows = (result.results || []).map(function (r) { return decodeRow(table, r); });
       await logChanges(env, table, 'UPDATE', rows.map(function (r) { return r.id; }));
       return json({ data: rows });
@@ -193,7 +198,7 @@ async function handleDb(request, env) {
     if (op === 'delete') {
       const binds = [];
       const sql = 'DELETE FROM ' + quoted + whereClause(body.filters, binds) + ' RETURNING *';
-      const result = await env.DB.prepare(sql).bind.apply(null, binds).all();
+      const result = await bindAll(env.DB.prepare(sql), binds).all();
       const rows = (result.results || []).map(function (r) { return decodeRow(table, r); });
       await logChanges(env, table, 'DELETE', rows.map(function (r) { return r.id; }));
       return json({ data: rows });
