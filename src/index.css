@@ -1,0 +1,230 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 35 35% 90%;
+    --foreground: 0 0% 10%;
+
+    --card: 35 30% 94%;
+    --card-foreground: 0 0% 10%;
+
+    --popover: 35 30% 94%;
+    --popover-foreground: 0 0% 10%;
+
+    --primary: 25 55% 35%;
+    --primary-foreground: 35 30% 95%;
+
+    --secondary: 35 25% 85%;
+    --secondary-foreground: 0 0% 15%;
+
+    --muted: 35 20% 88%;
+    --muted-foreground: 0 0% 35%;
+
+    --accent: 20 60% 30%;
+    --accent-foreground: 35 30% 95%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 30 25% 80%;
+    --input: 30 25% 80%;
+    --ring: 25 55% 35%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 35 30% 92%;
+    --sidebar-foreground: 0 0% 15%;
+    --sidebar-primary: 25 55% 35%;
+    --sidebar-primary-foreground: 35 30% 95%;
+    --sidebar-accent: 35 25% 86%;
+    --sidebar-accent-foreground: 0 0% 10%;
+    --sidebar-border: 30 25% 80%;
+    --sidebar-ring: 25 55% 35%;
+
+    /* Custom tokens */
+    --gradient-primary: linear-gradient(135deg, hsl(25 55% 35%), hsl(20 50% 40%));
+    --gradient-accent: linear-gradient(135deg, hsl(20 60% 30%), hsl(15 55% 35%));
+    --gradient-card: linear-gradient(180deg, hsl(35 30% 94%), hsl(35 28% 91%));
+    --shadow-soft: 0 4px 20px -4px hsl(0 0% 0% / 0.1);
+    --shadow-elevated: 0 12px 40px -8px hsl(0 0% 0% / 0.15);
+  }
+
+  .dark {
+    --background: 25 15% 10%;
+    --foreground: 35 25% 92%;
+
+    --card: 25 12% 14%;
+    --card-foreground: 35 25% 92%;
+
+    --popover: 25 12% 14%;
+    --popover-foreground: 35 25% 92%;
+
+    --primary: 30 50% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 25 12% 18%;
+    --secondary-foreground: 35 25% 92%;
+
+    --muted: 25 10% 20%;
+    --muted-foreground: 35 15% 55%;
+
+    --accent: 25 55% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 25 10% 22%;
+    --input: 25 10% 22%;
+    --ring: 30 50% 45%;
+
+    --sidebar-background: 25 12% 12%;
+    --sidebar-foreground: 35 20% 88%;
+    --sidebar-primary: 30 50% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 25 10% 18%;
+    --sidebar-accent-foreground: 35 20% 88%;
+    --sidebar-border: 25 10% 20%;
+    --sidebar-ring: 30 50% 45%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(30 50% 45%), hsl(25 45% 50%));
+    --gradient-accent: linear-gradient(135deg, hsl(25 55% 40%), hsl(20 50% 45%));
+    --gradient-card: linear-gradient(180deg, hsl(25 12% 14%), hsl(25 12% 16%));
+    --shadow-soft: 0 4px 20px -4px hsl(0 0% 0% / 0.3);
+    --shadow-elevated: 0 12px 40px -8px hsl(0 0% 0% / 0.4);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  /* Global default scrollbar - brown accent */
+  ::-webkit-scrollbar {
+    width: 14px;
+    height: 14px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(35 30% 88%);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(25 40% 55%);
+    border-radius: 7px;
+    border: 3px solid hsl(35 30% 88%);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(25 45% 45%);
+  }
+
+  ::-webkit-scrollbar-button:single-button {
+    background: hsl(35 30% 88%);
+    display: block;
+    height: 14px;
+    width: 14px;
+  }
+
+  ::-webkit-scrollbar-button:single-button:vertical:decrement {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%236b4423' d='M4 2L1 6h6z'/%3E%3C/svg%3E");
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  ::-webkit-scrollbar-button:single-button:vertical:increment {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%236b4423' d='M4 6L1 2h6z'/%3E%3C/svg%3E");
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  ::-webkit-scrollbar-button:single-button:vertical:decrement:hover,
+  ::-webkit-scrollbar-button:single-button:vertical:increment:hover {
+    background-color: hsl(35 25% 82%);
+  }
+
+  /* Firefox global scrollbar */
+  * {
+    scrollbar-width: auto;
+    scrollbar-color: hsl(25 40% 55%) hsl(35 30% 88%);
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+
+  .bg-gradient-primary {
+    background-image: var(--gradient-primary);
+  }
+
+  .bg-gradient-accent {
+    background-image: var(--gradient-accent);
+  }
+
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.4s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out forwards;
+  }
+
+  .zero-score-row > td {
+    background-color: hsl(var(--destructive) / 0.18) !important;
+  }
+
+  .zero-score-row:hover > td {
+    background-color: hsl(var(--destructive) / 0.25) !important;
+  }
+
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
