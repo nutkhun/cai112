@@ -1,4 +1,6 @@
-export type Section = '257A';
+export type Section = '457A' | '458A' | '458B';
+
+export const SECTIONS: Section[] = ['457A', '458A', '458B'];
 
 export interface Student {
   id: string;
