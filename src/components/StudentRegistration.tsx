@@ -22,7 +22,7 @@ export const StudentRegistration = ({
 }: StudentRegistrationProps) => {
   const [name, setName] = useState('');
   const [studentId, setStudentId] = useState('');
-  const [section, setSection] = useState<Section>('257A');
+  const [section, setSection] = useState<Section>('457A');
   const [pin, setPin] = useState('');
   const [showPinChangeDialog, setShowPinChangeDialog] = useState(false);
   const [pendingStudent, setPendingStudent] = useState<Student | null>(null);
@@ -128,7 +128,9 @@ export const StudentRegistration = ({
                     <SelectValue placeholder="Select your section" />
                   </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="257A">257A</SelectItem>
+                    <SelectItem value="457A">457A</SelectItem>
+                    <SelectItem value="458A">458A</SelectItem>
+                    <SelectItem value="458B">458B</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
