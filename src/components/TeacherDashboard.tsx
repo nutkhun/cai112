@@ -1492,7 +1492,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
               </div>
               <div className="hidden sm:block">
                 <h1 className="font-display font-bold text-lg">Teacher Dashboard</h1>
-                <p className="text-sm text-foreground font-bold">CSI200 - Student Management System (SMS)</p>
+                <p className="text-sm text-foreground font-bold">CAI112 - Student Management System (SMS)</p>
               </div>
             </div>
 
