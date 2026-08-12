@@ -205,11 +205,11 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
   const [newStudentId, setNewStudentId] = useState('');
-  const [newStudentSection, setNewStudentSection] = useState<string>('257A');
+  const [newStudentSection, setNewStudentSection] = useState<string>('457A');
 
   // Import dialog state
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [importSection, setImportSection] = useState<string>('257A');
+  const [importSection, setImportSection] = useState<string>('457A');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
 
@@ -819,7 +819,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
       setAddStudentOpen(false);
       setNewStudentName('');
       setNewStudentId('');
-      setNewStudentSection('257A');
+      setNewStudentSection('457A');
       // Trigger data refresh
       refreshSync();
     }
@@ -1234,7 +1234,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
   const ungroupedStudents = students.filter(s => !s.groupId).length;
 
   // Get unique sections from students
-  const sections = ['257A'];
+  const sections = ['457A'];
 
   // Filter and sort students
   const filteredStudents = students.filter(student => {
@@ -2815,7 +2815,9 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="257A">257A</SelectItem>
+                  <SelectItem value="457A">457A</SelectItem>
+                  <SelectItem value="458A">458A</SelectItem>
+                  <SelectItem value="458B">458B</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -2849,7 +2851,9 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="257A">257A</SelectItem>
+                  <SelectItem value="457A">457A</SelectItem>
+                  <SelectItem value="458A">458A</SelectItem>
+                  <SelectItem value="458B">458B</SelectItem>
                 </SelectContent>
               </Select>
             </div>
