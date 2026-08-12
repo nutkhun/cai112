@@ -90,7 +90,7 @@ export const StudentRegistration = ({
             <Users className="w-8 h-8 text-primary-foreground" />
           </div>
           <h1 className="text-3xl font-display font-bold text-foreground mb-2">
-            <span className="block">CSI200</span>
+            <span className="block">CAI112</span>
             <span className="block">Student Management System (SMS)</span>
           </h1>
         </div>
