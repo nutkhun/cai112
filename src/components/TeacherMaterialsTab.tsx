@@ -81,7 +81,7 @@ export const TeacherMaterialsTab = () => {
       setSelectedFile(files[0]);
     }
   };
-  const sections = ['257A'];
+  const sections = ['457A'];
 
   useEffect(() => {
     fetchMaterials();
