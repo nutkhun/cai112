@@ -405,9 +405,9 @@ export const StudentDashboard = () => {
                 <Badge variant="secondary" className="text-xs">{currentStudent.section}</Badge>
               </div>
 
-              <div className="flex min-w-0 items-center gap-2 md:hidden">
-                <span className="truncate text-sm font-medium">{currentStudent.name}</span>
-                <Badge variant="secondary" className="shrink-0 text-xs">{currentStudent.section}</Badge>
+              <div className="flex min-w-0 flex-col items-end gap-0.5 md:hidden">
+                <span className="max-w-full truncate text-sm font-medium">{currentStudent.name}</span>
+                <Badge variant="secondary" className="text-xs">{currentStudent.section}</Badge>
               </div>
 
               <Button
