@@ -28,7 +28,6 @@ import {
   Mail,
   CalendarX,
   User,
-  UserSearch,
 } from 'lucide-react';
 import { Student } from '@/types';
 import { supabase } from '@/integrations/backend/client';
@@ -131,9 +130,7 @@ export const StudentDashboard = () => {
 
   // The Chat tab only exists once the student belongs to a group.
   const navItems: MobileNavItem<StudentTab>[] = [
-    currentGroup
-      ? { id: 'group' as const, label: 'Group', icon: Users }
-      : { id: 'group' as const, label: 'Find', icon: UserSearch },
+    { id: 'group' as const, label: 'Group', icon: Users },
     ...(currentGroup ? [{ id: 'chat' as const, label: 'Chat', icon: MessageCircle }] : []),
     { id: 'work' as const, label: 'Work', icon: FolderOpen },
     { id: 'inbox' as const, label: 'Inbox', icon: Mail, badge: unreadCount },
