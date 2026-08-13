@@ -62,7 +62,7 @@ export function StudentMobileNav<T extends string>({ items, value, onChange }: S
                     </span>
                   )}
                 </span>
-                <span className="max-w-full truncate text-xs font-medium leading-none">
+                <span className="max-w-full text-center text-xs font-medium leading-tight line-clamp-2">
                   {item.label}
                   {!!item.badge && item.badge > 0 && (
                     <span className="sr-only"> ({item.badge} unread)</span>
