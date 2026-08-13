@@ -27,6 +27,36 @@
 
   <body>
     <div id="root"></div>
+    <script>
+      // Self-healing: if the app bundle fails to load (poisoned cache, stale
+      // install), purge caches and retry once with a forced refetch instead of
+      // leaving a white screen.
+      window.addEventListener(
+        'error',
+        function (e) {
+          var el = e.target;
+          if (!el || (el.tagName !== 'SCRIPT' && el.tagName !== 'LINK')) return;
+          if (sessionStorage.getItem('cai112-recovered')) return;
+          sessionStorage.setItem('cai112-recovered', '1');
+          var done = function () { location.reload(); };
+          try {
+            var purges = [];
+            if (window.caches && caches.keys) {
+              purges.push(caches.keys().then(function (ks) {
+                return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+              }));
+            }
+            var url = el.src || el.href;
+            if (url) purges.push(fetch(url, { cache: 'reload' }).catch(function () {}));
+            Promise.all(purges).then(done, done);
+            setTimeout(done, 4000);
+          } catch (err) {
+            done();
+          }
+        },
+        true
+      );
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
