@@ -132,7 +132,7 @@ export const StudentDashboard = () => {
   const navItems: MobileNavItem<StudentTab>[] = [
     { id: 'group' as const, label: 'Group', icon: Users },
     ...(currentGroup ? [{ id: 'chat' as const, label: 'Chat', icon: MessageCircle }] : []),
-    { id: 'work' as const, label: 'Assignment & Project', icon: ClipboardList },
+    { id: 'work' as const, label: 'Assignment', icon: ClipboardList },
     { id: 'inbox' as const, label: 'Inbox', icon: Mail, badge: unreadCount },
     { id: 'absence' as const, label: 'Absence', icon: CalendarX },
     { id: 'profile' as const, label: 'Profile', icon: User },
