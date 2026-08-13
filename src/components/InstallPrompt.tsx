@@ -15,16 +15,29 @@ import { Smartphone, Share, SquarePlus } from 'lucide-react';
  * before the student has signed in. Capture it at module scope so the dialog
  * can replay it whenever it finally opens.
  */
-let deferredInstallEvent: (Event & { prompt: () => Promise<void> }) | null = null;
+let deferredInstallEvent:
+  | (Event & {
+      prompt: () => Promise<void>;
+      userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+    })
+  | null = null;
+
+// The -v2 suffix retires snoozes stored by the old version, which wrongly
+// counted a completed install as "don't ask again".
+const SNOOZE_KEY = 'cai112-install-snoozed-until-v2';
+const SNOOZE_DAYS = 7;
+
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredInstallEvent = e as typeof deferredInstallEvent;
   });
+  // A completed install clears any snooze, so a student who uninstalls
+  // the app later gets offered it again on their next sign-in.
+  window.addEventListener('appinstalled', () => {
+    localStorage.removeItem(SNOOZE_KEY);
+  });
 }
-
-const SNOOZE_KEY = 'cai112-install-snoozed-until';
-const SNOOZE_DAYS = 7;
 
 const isStandalone = () =>
   window.matchMedia('(display-mode: standalone)').matches ||
@@ -69,13 +82,20 @@ export const InstallPrompt = ({ signedIn }: InstallPromptProps) => {
 
   const install = async () => {
     if (!deferredInstallEvent) return snooze();
+    const evt = deferredInstallEvent;
+    deferredInstallEvent = null;
     try {
-      await deferredInstallEvent.prompt();
-    } finally {
-      deferredInstallEvent = null;
-      // Whether accepted or not, Chrome won't allow re-prompting this event.
-      snooze();
+      await evt.prompt();
+      const choice = await evt.userChoice;
+      // Snooze only when the student declined Chrome's prompt; accepting
+      // fires `appinstalled`, which clears any snooze instead.
+      if (choice.outcome === 'dismissed') {
+        localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_DAYS * 24 * 60 * 60 * 1000));
+      }
+    } catch {
+      /* prompt already used or blocked - nothing to do */
     }
+    setOpen(false);
   };
 
   return (
