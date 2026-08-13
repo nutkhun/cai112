@@ -109,6 +109,15 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return n.toLowerCase().replace(/^(miss\s+|mr\.\s*)/i, '').trim();
     };
 
+    // Students sign in with their last name only. Accept the full name too,
+    // so nobody gets locked out by typing more than asked.
+    const matchesStoredName = (entered: string, stored: string) => {
+      const enteredNorm = normalizeName(entered).replace(/\s+/g, ' ');
+      const storedNorm = normalizeName(stored).replace(/\s+/g, ' ');
+      const storedLast = storedNorm.split(' ').pop() ?? '';
+      return enteredNorm === storedLast || enteredNorm === storedNorm;
+    };
+
     // Try to fetch from database first to check if student exists (case-insensitive)
     const { data: existingData } = await supabase
       .from('students')
@@ -121,11 +130,11 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // For PIN: treat NULL in database as "0000" (default PIN for first-time login)
       const storedPin = existingData.pin || '0000';
       
-      // Compare names without MISS/MR. prefix
-      if (normalizeName(existingData.name) !== normalizeName(name) || 
-          existingData.section !== section || 
+      // Compare last names (full name also accepted), without MISS/MR. prefix
+      if (!matchesStoredName(name, existingData.name) ||
+          existingData.section !== section ||
           storedPin !== pin) {
-        return { error: 'Login failed. Name, Student ID, Section, or PIN does not match our records.' };
+        return { error: 'Login failed. Last Name, Student ID, Section, or PIN does not match our records.' };
       }
       const student: Student = {
         id: existingData.id,

@@ -105,9 +105,9 @@ export const StudentRegistration = ({
               <div className="space-y-2">
                 <Label htmlFor="name" className="flex items-center gap-2">
                   <User className="w-4 h-4 text-muted-foreground" />
-                  Full Name
+                  Last Name
                 </Label>
-                <Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="Enter your full name" className="h-11" />
+                <Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="Enter your last name" className="h-11" />
               </div>
               
               <div className="space-y-2">
