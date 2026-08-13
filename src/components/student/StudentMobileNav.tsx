@@ -52,7 +52,7 @@ export function StudentMobileNav<T extends string>({ items, value, onChange }: S
                 )}
               >
                 <span className="relative">
-                  <Icon className={cn('h-5 w-5 shrink-0', isActive && 'stroke-[2.5]')} />
+                  <Icon className={cn('h-6 w-6 shrink-0', isActive && 'stroke-[2.5]')} />
                   {!!item.badge && item.badge > 0 && (
                     <span
                       className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground"
@@ -62,7 +62,7 @@ export function StudentMobileNav<T extends string>({ items, value, onChange }: S
                     </span>
                   )}
                 </span>
-                <span className="max-w-full truncate text-[11px] font-medium leading-none">
+                <span className="max-w-full truncate text-xs font-medium leading-none">
                   {item.label}
                   {!!item.badge && item.badge > 0 && (
                     <span className="sr-only"> ({item.badge} unread)</span>

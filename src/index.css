@@ -121,6 +121,14 @@
     scroll-padding-top: 5rem;
   }
 
+  /* Native-app type scale on phones: every rem-based Tailwind size grows 25%,
+     so text-sm renders ~17.5px (iOS body is 17pt). Desktop is unchanged. */
+  @media (max-width: 767px) {
+    html {
+      font-size: 125%;
+    }
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'DM Sans', sans-serif;
@@ -150,7 +158,9 @@
     textarea,
     select,
     [contenteditable='true'] {
-      font-size: 16px;
+      /* 1rem = 20px under the 125% mobile root - comfortably over the 16px
+         threshold below which iOS Safari zooms the page on focus. */
+      font-size: max(16px, 1rem);
     }
   }
 
