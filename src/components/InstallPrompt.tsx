@@ -87,8 +87,7 @@ export const InstallPrompt = ({ signedIn }: InstallPromptProps) => {
             Install CAI112 on your phone
           </DialogTitle>
           <DialogDescription>
-            Add the app to your home screen to open it with one tap - no browser address bar,
-            just like a native app.
+            Add the app to your home screen to easily open it later.
           </DialogDescription>
         </DialogHeader>
 
