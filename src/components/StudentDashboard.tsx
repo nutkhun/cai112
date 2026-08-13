@@ -26,7 +26,8 @@ import {
   MessageCircle,
   FolderOpen,
   Mail,
-  MoreHorizontal,
+  CalendarX,
+  User,
   UserSearch,
 } from 'lucide-react';
 import { Student } from '@/types';
@@ -35,7 +36,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useUnreadTeacherMessages } from '@/hooks/useUnreadTeacherMessages';
 import { cn } from '@/lib/utils';
 
-type StudentTab = 'group' | 'chat' | 'work' | 'inbox' | 'more';
+type StudentTab = 'group' | 'chat' | 'work' | 'inbox' | 'absence' | 'profile';
 
 export const StudentDashboard = () => {
   const [leaderDialogOpen, setLeaderDialogOpen] = useState(false);
@@ -136,7 +137,8 @@ export const StudentDashboard = () => {
     ...(currentGroup ? [{ id: 'chat' as const, label: 'Chat', icon: MessageCircle }] : []),
     { id: 'work' as const, label: 'Work', icon: FolderOpen },
     { id: 'inbox' as const, label: 'Inbox', icon: Mail, badge: unreadCount },
-    { id: 'more' as const, label: 'More', icon: MoreHorizontal },
+    { id: 'absence' as const, label: 'Absence', icon: CalendarX },
+    { id: 'profile' as const, label: 'Profile', icon: User },
   ];
 
   // If the student leaves a group while sitting on the Chat tab, fall back home.
@@ -270,7 +272,14 @@ export const StudentDashboard = () => {
           </div>
         );
 
-      case 'more':
+      case 'absence':
+        return (
+          <div className="space-y-4 animate-fade-in">
+            <AbsenceForm defaultExpanded />
+          </div>
+        );
+
+      case 'profile':
         return (
           <div className="space-y-4 animate-fade-in">
             <Card className="shadow-soft border-0">
@@ -293,8 +302,6 @@ export const StudentDashboard = () => {
                 </div>
               </CardContent>
             </Card>
-
-            <AbsenceForm defaultExpanded />
 
             {!currentGroup && <PendingInvitationsPanel />}
 
