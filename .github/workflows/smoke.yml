@@ -1,0 +1,51 @@
+name: Post-deploy smoke test
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Daily safety net at 06:00 UTC (13:00 Bangkok).
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Cloudflare Pages deploy
+        if: github.event_name == 'push'
+        run: sleep 120
+
+      - name: Live site serves real assets with correct types
+        run: |
+          set -euo pipefail
+          BASE=https://cai112.bu-sms.site
+
+          html=$(curl -sf "$BASE/")
+          js=$(echo "$html" | grep -o 'assets/index-[^"]*\.js' | head -1)
+          css=$(echo "$html" | grep -o 'assets/index-[^"]*\.css' | head -1)
+          echo "bundle: $js / $css"
+
+          check () { # url, expected content-type substring
+            ct=$(curl -sf -o /dev/null -w '%{content_type}' "$1")
+            case "$ct" in
+              *"$2"*) echo "OK  $1 ($ct)" ;;
+              *) echo "FAIL $1 - expected $2, got $ct"; exit 1 ;;
+            esac
+          }
+
+          check "$BASE/$js" "javascript"
+          check "$BASE/$css" "css"
+          check "$BASE/manifest.webmanifest" "manifest"
+          check "$BASE/sw.js" "javascript"
+          check "$BASE/icons/icon-192.png" "image/png"
+
+      - name: Database API responds
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+            -H 'content-type: application/json' \
+            -d '{"table":"students","op":"select","limit":1}' \
+            https://cai112.bu-sms.site/api/db)
+          test "$code" = "200" || { echo "API returned $code"; exit 1; }
+          echo "OK  /api/db"
