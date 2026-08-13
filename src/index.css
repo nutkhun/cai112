@@ -1,8 +1,11 @@
+/* CSS requires @import to come first - it was previously after the @tailwind
+   directives, which made bundlers drop or reorder it and the web fonts could
+   silently fail to load. */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 @layer base {
   :root {
@@ -110,13 +113,56 @@
     @apply border-border;
   }
 
+  html {
+    /* Stop iOS/Android from re-flowing type when the phone is rotated. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Anchor links and programmatic scrolls clear the sticky header. */
+    scroll-padding-top: 5rem;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'DM Sans', sans-serif;
+    /* A long unbroken string (a pasted URL, a 40-char filename) must never
+       widen the page on a 375px screen. */
+    overflow-wrap: break-word;
+    /* Kill the grey flash when tapping cards/buttons on Android Chrome. */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Belt-and-braces: nothing may create a horizontal scrollbar on phones.
+     `clip` rather than `hidden` on purpose - `overflow-x: hidden` turns the
+     body into a scroll container and silently breaks the `position: sticky`
+     headers on both dashboards. `clip` crops without that side effect. */
+  body {
+    overflow-x: clip;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Space Grotesk', sans-serif;
+  }
+
+  /* iOS Safari zooms the whole page whenever a focused field is under 16px.
+     Keep every text control at 16px on small screens; shrink only at md+. */
+  @media (max-width: 767px) {
+    input:not([type='checkbox']):not([type='radio']),
+    textarea,
+    select,
+    [contenteditable='true'] {
+      font-size: 16px;
+    }
+  }
+
+  /* Touch devices get comfortable hit areas without changing desktop density. */
+  @media (pointer: coarse) {
+    button,
+    [role='button'],
+    a[href],
+    summary,
+    label[for] {
+      touch-action: manipulation;
+    }
   }
 
   /* Global default scrollbar - teal accent */
@@ -168,6 +214,24 @@
     scrollbar-width: auto;
     scrollbar-color: hsl(174 40% 45%) hsl(180 20% 90%);
   }
+
+  /* Those 14px teal scrollbars are a desktop affordance. On touch screens they
+     steal real width from every scroll container, so hand scrolling back to
+     the platform's own overlay scrollbars. */
+  @media (pointer: coarse) {
+    ::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+    }
+
+    ::-webkit-scrollbar-button:single-button {
+      display: none;
+    }
+
+    * {
+      scrollbar-width: none;
+    }
+  }
 }
 
 @layer utilities {
@@ -212,6 +276,60 @@
     background-color: hsl(var(--destructive) / 0.25) !important;
   }
 
+  /* --- Mobile layout helpers --------------------------------------------- */
+
+  /* Respect the notch / home indicator on iPhones and gesture-nav Androids. */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Leaves room for the fixed bottom tab bar so the last card is reachable. */
+  .pb-mobile-nav {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (min-width: 768px) {
+    .pb-mobile-nav {
+      padding-bottom: 0;
+    }
+  }
+
+  /* Chat fills the space between the sticky header and the bottom tab bar.
+     dvh tracks mobile Safari's collapsing URL bar; the env() terms account for
+     the notch and the home indicator. */
+  .h-chat-mobile {
+    height: calc(
+      100dvh - 152px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)
+    );
+    min-height: 20rem;
+  }
+
+  /* Scroll containers inside the app shouldn't drag the whole page with them. */
+  .scroll-contain {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Guarantees a 44x44 CSS-pixel target on touch without altering desktop. */
+  @media (pointer: coarse) {
+    .touch-target {
+      position: relative;
+    }
+
+    .touch-target::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 44px;
+      height: 44px;
+      transform: translate(-50%, -50%);
+    }
+  }
 }
 
 @keyframes fadeIn {

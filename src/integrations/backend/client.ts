@@ -1,9 +1,8 @@
 // Cloudflare backend client.
-// This file keeps the same import path and export name that the rest of the app
-// already uses, but every call now goes to the Pages Functions in /functions/api,
-// which read and write Cloudflare D1 (database) and R2 (file storage).
-// Import it exactly as before:
-//   import { supabase } from "@/integrations/supabase/client";
+// Every call goes to the Pages Functions in /functions/api, which read and
+// write Cloudflare D1 (database) and R2 (file storage). The export keeps the
+// Supabase-style name and query API so existing call sites work unchanged:
+//   import { supabase } from "@/integrations/backend/client";
 
 type Row = Record<string, any>;
 type Filter = { col: string; op: string; val: any };

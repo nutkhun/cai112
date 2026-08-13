@@ -73,7 +73,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/backend/client';
 import { AbsenceRequestsTab } from './AbsenceRequestsTab';
 import { TeacherMessagesTab } from './TeacherMessagesTab';
 import { TeacherMaterialsTab } from './TeacherMaterialsTab';
@@ -1480,11 +1480,11 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-card/80 backdrop-blur-md border-b border-border">
+      <header className="sticky top-0 z-10 bg-card/80 backdrop-blur-md border-b border-border pt-safe">
         <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" onClick={onSwitchView}>
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              <Button variant="ghost" size="icon" onClick={onSwitchView} aria-label="Back to student view">
                 <ArrowLeft className="w-5 h-5" />
               </Button>
               <div className="p-2 rounded-xl bg-gradient-accent">
@@ -1496,8 +1496,11 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
               </div>
             </div>
 
-            {/* Dropdown Navigation */}
-            <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-1">
+            {/* Dropdown Navigation.
+                The teacher dashboard is desktop-first, but the nav row must not
+                blow out the page on a narrow window - let it scroll instead.
+                Radix renders the menus in a portal, so nothing gets clipped. */}
+            <div className="flex min-w-0 items-center gap-1 overflow-x-auto scroll-contain bg-muted/40 rounded-lg p-1">
               {/* Students Dropdown */}
               <div 
                 onMouseEnter={() => setStudentsDropdownOpen(true)}
@@ -1675,7 +1678,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-4">
+      <main className="container mx-auto px-4 py-4 pb-safe">
         {/* Minimized Stats Row */}
         <div className="flex flex-wrap items-center gap-3 mb-4 px-2">
           <div className="flex items-center gap-2 text-sm">

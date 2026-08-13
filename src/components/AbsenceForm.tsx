@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGroups } from '@/context/GroupContext';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/backend/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,7 +22,12 @@ interface AbsenceRequest {
   created_at: string;
 }
 
-export const AbsenceForm = () => {
+interface AbsenceFormProps {
+  /** Start opened - used when the card is the sole content of a mobile tab. */
+  defaultExpanded?: boolean;
+}
+
+export const AbsenceForm = ({ defaultExpanded = false }: AbsenceFormProps) => {
   const { currentStudent } = useGroups();
   const { toast } = useToast();
   const [absenceDate, setAbsenceDate] = useState<Date>();
@@ -32,7 +37,7 @@ export const AbsenceForm = () => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [submittedRequests, setSubmittedRequests] = useState<AbsenceRequest[]>([]);
   const [editingRequest, setEditingRequest] = useState<AbsenceRequest | null>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   // Fetch student's submitted absence requests
   useEffect(() => {
@@ -321,7 +326,7 @@ export const AbsenceForm = () => {
                     variant="outline"
                     size="sm"
                     className={cn(
-                      "w-full justify-start text-left font-normal h-8",
+                      "w-full justify-start text-left font-normal h-11 md:h-8",
                       !absenceDate && "text-muted-foreground"
                     )}
                   >
@@ -352,7 +357,7 @@ export const AbsenceForm = () => {
                 placeholder="Explain the reason..."
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className="min-h-[60px] resize-none text-sm"
+                className="min-h-[60px] resize-none text-base md:text-sm"
                 required
               />
             </div>
@@ -374,10 +379,10 @@ export const AbsenceForm = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => document.getElementById('document')?.click()}
-                className="w-full h-8"
+                className="w-full h-11 md:h-8"
               >
-                <Upload className="w-3 h-3 mr-2" />
-                {file ? file.name : 'Upload (Max 10MB)'}
+                <Upload className="w-3 h-3 mr-2 shrink-0" />
+                <span className="truncate">{file ? file.name : 'Upload (Max 10MB)'}</span>
               </Button>
             </div>
 
@@ -388,7 +393,7 @@ export const AbsenceForm = () => {
                   type="button" 
                   variant="outline"
                   size="sm"
-                  className="flex-1 h-8"
+                  className="flex-1 h-11 md:h-8"
                   onClick={handleCancelEdit}
                 >
                   Cancel
@@ -397,7 +402,7 @@ export const AbsenceForm = () => {
               <Button 
                 type="submit" 
                 size="sm"
-                className="flex-1 h-8"
+                className="flex-1 h-11 md:h-8"
                 disabled={isSubmitting || !absenceDate || !reason.trim() || (!file && !editingRequest)}
               >
                 {isSubmitting ? (
@@ -416,11 +421,11 @@ export const AbsenceForm = () => {
           {submittedRequests.length > 0 && (
             <div className="pt-4 border-t border-border">
               <h4 className="text-xs font-medium mb-2 text-muted-foreground">Submitted Requests</h4>
-              <div className="space-y-2 max-h-36 overflow-y-auto">
+              <div className="space-y-2 max-h-[45vh] sm:max-h-36 overflow-y-auto scroll-contain">
                 {submittedRequests.map((request) => (
                   <div 
                     key={request.id} 
-                    className="flex items-center justify-between p-2 rounded-lg bg-muted/50 text-xs gap-2"
+                    className="flex flex-col gap-2 p-2 rounded-lg bg-muted/50 text-xs sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="flex items-start gap-2 flex-1 min-w-0">
                       <div className="mt-0.5">{getStatusIcon(request.status)}</div>
@@ -438,25 +443,27 @@ export const AbsenceForm = () => {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0 self-end sm:self-auto">
                       {getStatusBadge(request.status)}
                       {request.status === 'pending' && (
                         <>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6"
+                            aria-label="Edit request"
+                            className="h-10 w-10 md:h-6 md:w-6"
                             onClick={() => handleEdit(request)}
                           >
-                            <Pencil className="h-3 w-3" />
+                            <Pencil className="h-3.5 w-3.5 md:h-3 md:w-3" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 text-destructive hover:text-destructive"
+                            aria-label="Delete request"
+                            className="h-10 w-10 md:h-6 md:w-6 text-destructive hover:text-destructive"
                             onClick={() => handleDelete(request.id)}
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <Trash2 className="h-3.5 w-3.5 md:h-3 md:w-3" />
                           </Button>
                         </>
                       )}

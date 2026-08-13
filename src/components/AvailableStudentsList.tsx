@@ -109,12 +109,14 @@ export const AvailableStudentsList = ({ onGroupCreated }: AvailableStudentsListP
   return <>
       <Card className="shadow-soft border-0">
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-display flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-primary" />
-              Select Classmates to create your group for Midterm Presentation and Final Project
+          {/* Stacked on phones: this title is long, and squeezing a badge beside
+              it on a 390px screen left ~2 words per line. */}
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base sm:text-lg font-display flex items-start gap-2">
+              <UserCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+              <span>Select Classmates to create your group for Midterm Presentation and Final Project</span>
             </CardTitle>
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-xs shrink-0">
               {availableStudents.length} available
             </Badge>
           </div>
@@ -130,7 +132,7 @@ export const AvailableStudentsList = ({ onGroupCreated }: AvailableStudentsListP
               <p className="text-sm">
                 {availableStudents.length === 0 ? "All classmates are in groups" : "No classmates match your search"}
               </p>
-            </div> : <div className={cn("grid gap-2 max-h-[300px] overflow-y-auto", selectedMembers.length > 0 && "pb-20")}>
+            </div> : <div className={cn("grid gap-2 max-h-[50vh] sm:max-h-[300px] overflow-y-auto scroll-contain", selectedMembers.length > 0 && "pb-20")}>
               {filteredStudents.map(student => {
             const isSelected = selectedMembers.includes(student.id);
             return <div key={student.id} onClick={() => toggleMember(student.id)} className={cn("flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all", isSelected ? "bg-primary/10 ring-2 ring-primary/30" : "bg-muted/50 hover:bg-muted")}>
@@ -148,10 +150,11 @@ export const AvailableStudentsList = ({ onGroupCreated }: AvailableStudentsListP
       </Card>
 
       {/* Floating action bar when members are selected */}
-      {selectedMembers.length > 0 && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-card shadow-elevated border border-border backdrop-blur-md">
-            <div className="flex items-center gap-2">
-              <div className="flex -space-x-2">
+      {/* Sits above the mobile tab bar on phones, and in its original spot on desktop. */}
+      {selectedMembers.length > 0 && <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] md:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-1.5rem)] max-w-md md:w-auto animate-fade-in">
+          <div className="flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-4 py-3 rounded-2xl bg-card shadow-elevated border border-border backdrop-blur-md">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="hidden xs:flex -space-x-2">
                 {selectedMembers.slice(0, 3).map(id => {
               const student = getStudentById(id);
               return student ? <Avatar key={id} className="h-8 w-8 border-2 border-card">
@@ -161,18 +164,21 @@ export const AvailableStudentsList = ({ onGroupCreated }: AvailableStudentsListP
                     </Avatar> : null;
             })}
               </div>
-              <span className="text-sm font-medium">
+              <span className="whitespace-nowrap text-sm font-medium">
                 {selectedMembers.length} selected
               </span>
             </div>
-            <div className="w-px h-6 bg-border" />
-            <Button variant="ghost" size="sm" onClick={clearSelection} className="h-8 px-2">
-              <X className="w-4 h-4" />
-            </Button>
-            <Button variant="gradient" size="sm" onClick={() => setShowNameDialog(true)} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Create Group
-            </Button>
+            <div className="hidden md:block w-px h-6 bg-border" />
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+              <Button variant="ghost" size="sm" onClick={clearSelection} aria-label="Clear selection" className="px-2">
+                <X className="w-4 h-4" />
+              </Button>
+              <Button variant="gradient" size="sm" onClick={() => setShowNameDialog(true)} className="gap-1.5 sm:gap-2">
+                <Plus className="w-4 h-4" />
+                Create
+                <span className="hidden sm:inline">Group</span>
+              </Button>
+            </div>
           </div>
         </div>}
 

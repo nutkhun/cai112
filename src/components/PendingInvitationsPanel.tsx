@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGroups } from '@/context/GroupContext';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/backend/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -173,7 +173,7 @@ export const PendingInvitationsPanel = () => {
                 size="sm" 
                 variant="default"
                 onClick={() => handleAccept(invitation)}
-                className="h-8 px-3"
+                className="h-10 md:h-8 px-3"
               >
                 <Check className="w-4 h-4" />
               </Button>
@@ -181,7 +181,7 @@ export const PendingInvitationsPanel = () => {
                 size="sm" 
                 variant="outline"
                 onClick={() => handleDecline(invitation)}
-                className="h-8 px-3"
+                className="h-10 md:h-8 px-3"
               >
                 <X className="w-4 h-4" />
               </Button>

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/backend/client';
 import { useGroups } from '@/context/GroupContext';
 import { UserPlus, Check, X, Clock, Bell } from 'lucide-react';
 import { toast } from 'sonner';
@@ -221,7 +221,7 @@ export const JoinRequestsPanel = ({ groupId }: JoinRequestsPanelProps) => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    className="h-10 w-10 p-0 md:h-8 md:w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                     onClick={() => handleReject(request)}
                   >
                     <X className="w-4 h-4" />
@@ -229,7 +229,7 @@ export const JoinRequestsPanel = ({ groupId }: JoinRequestsPanelProps) => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0 text-success hover:text-success hover:bg-success/10"
+                    className="h-10 w-10 p-0 md:h-8 md:w-8 text-success hover:text-success hover:bg-success/10"
                     onClick={() => handleApprove(request)}
                   >
                     <Check className="w-4 h-4" />

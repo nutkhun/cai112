@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/backend/client';
 import { useGroups } from '@/context/GroupContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { MessageCircle, Send, Paperclip, X, Download, FileIcon, Image as ImageIcon, Reply, CornerDownRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface Message {
   id: string;
@@ -22,9 +23,14 @@ interface Message {
 
 interface GroupChatProps {
   groupId: string;
+  /**
+   * Fill the viewport between the header and the mobile tab bar instead of
+   * using a fixed 400px message pane. Used by the phone "Chat" destination.
+   */
+  fullHeight?: boolean;
 }
 
-export const GroupChat = ({ groupId }: GroupChatProps) => {
+export const GroupChat = ({ groupId, fullHeight = false }: GroupChatProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -340,15 +346,26 @@ export const GroupChat = ({ groupId }: GroupChatProps) => {
   };
 
   return (
-    <Card className="shadow-soft border-0 mt-4 w-full overflow-hidden">
+    <Card
+      className={cn(
+        'shadow-soft border-0 w-full overflow-hidden',
+        fullHeight ? 'flex h-chat-mobile flex-col' : 'mt-4',
+      )}
+    >
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-lg">
           <MessageCircle className="w-5 h-5 text-primary" />
           Group Chat
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-4 pt-0">
-        <div className="h-[400px] overflow-y-auto" ref={scrollRef}>
+      <CardContent className={cn('p-4 pt-0', fullHeight && 'flex min-h-0 flex-1 flex-col')}>
+        <div
+          className={cn(
+            'overflow-y-auto scroll-contain',
+            fullHeight ? 'min-h-0 flex-1' : 'h-[400px]',
+          )}
+          ref={scrollRef}
+        >
           <div className="pr-2">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
@@ -376,7 +393,9 @@ export const GroupChat = ({ groupId }: GroupChatProps) => {
                             key={msg.id}
                             className={`flex flex-col group/message ${isOwnMessage ? 'items-end' : 'items-start'}`}
                           >
-                            <div className="flex flex-col" style={{ maxWidth: 'min(80%, 320px)' }}>
+                            {/* Wider bubbles on phones - 320px would waste a third
+                                of a 390px screen. */}
+                            <div className="flex flex-col max-w-[85%] sm:max-w-[min(80%,320px)]">
                               <p className={`text-xs font-bold mb-1 ${memberColors.text}`}>
                                 {senderName}
                               </p>
@@ -397,10 +416,11 @@ export const GroupChat = ({ groupId }: GroupChatProps) => {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-5 w-5"
+                                    aria-label={`Reply to ${senderName}`}
+                                    className="h-10 w-10 md:h-7 md:w-7"
                                     onClick={() => handleReply(msg)}
                                   >
-                                    <Reply className="h-3 w-3" />
+                                    <Reply className="h-4 w-4 md:h-3.5 md:w-3.5" />
                                   </Button>
                                 )}
                               </div>
@@ -451,7 +471,7 @@ export const GroupChat = ({ groupId }: GroupChatProps) => {
           </div>
         )}
 
-        <form onSubmit={handleSendMessage} className="flex gap-2 mt-4">
+        <form onSubmit={handleSendMessage} className="flex shrink-0 gap-2 mt-4">
           <input
             type="file"
             ref={fileInputRef}
@@ -459,10 +479,12 @@ export const GroupChat = ({ groupId }: GroupChatProps) => {
             className="hidden"
             accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
           />
-          <Button 
-            type="button" 
-            variant="outline" 
+          <Button
+            type="button"
+            variant="outline"
             size="icon"
+            aria-label="Attach a file"
+            className="shrink-0"
             onClick={() => fileInputRef.current?.click()}
             disabled={sending}
           >
@@ -476,9 +498,11 @@ export const GroupChat = ({ groupId }: GroupChatProps) => {
             className="flex-1"
             disabled={sending}
           />
-          <Button 
-            type="submit" 
-            size="icon" 
+          <Button
+            type="submit"
+            size="icon"
+            aria-label="Send message"
+            className="shrink-0"
             disabled={(!newMessage.trim() && !selectedFile) || sending}
           >
             <Send className="w-4 h-4" />

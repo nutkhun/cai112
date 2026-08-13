@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/backend/client';
 import { Calendar, Save, Trash2, Plus, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';

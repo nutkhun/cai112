@@ -73,11 +73,12 @@ export const GroupCard = ({ group, showActions = true }: GroupCardProps) => {
 
   return (
     <Card className="border-border/50 bg-card/80">
-      <CardContent className="p-5 space-y-4">
+      <CardContent className="p-4 sm:p-5 space-y-4">
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <h3 className="text-xl font-semibold">{group.name}</h3>
-            <Badge variant={isFull ? "secondary" : "default"} className="text-xs">
+          {/* Wraps rather than overflowing when the group name is long. */}
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h3 className="text-lg sm:text-xl font-semibold break-words">{group.name}</h3>
+            <Badge variant={isFull ? "secondary" : "default"} className="text-xs shrink-0">
               {group.members.length}/4 members
             </Badge>
           </div>
@@ -100,8 +101,9 @@ export const GroupCard = ({ group, showActions = true }: GroupCardProps) => {
                 {member.id !== group.leaderId && (
                   <button
                     onClick={() => handleSetLeader(member.id)}
-                    className="opacity-40 hover:opacity-100 transition-opacity"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg opacity-60 transition-opacity hover:bg-muted hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-8 md:w-8 md:opacity-40"
                     title={`Make ${member.name} the leader`}
+                    aria-label={`Make ${member.name} the group leader`}
                   >
                     <Crown className="w-4 h-4 text-muted-foreground hover:text-accent" />
                   </button>

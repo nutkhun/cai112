@@ -70,7 +70,7 @@ export const LeaderSelectionDialog = ({
         <div className="space-y-3 mt-4">
           <p className="text-sm text-muted-foreground">Select one member as leader:</p>
           
-          <div className="space-y-2 max-h-[250px] overflow-y-auto">
+          <div className="space-y-2 max-h-[50vh] sm:max-h-[250px] overflow-y-auto scroll-contain">
             {members.map((member) => (
               <div
                 key={member.id}

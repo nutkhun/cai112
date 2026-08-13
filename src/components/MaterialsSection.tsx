@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/backend/client';
 import { useGroups } from '@/context/GroupContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -122,7 +122,7 @@ export const MaterialsSection = () => {
                 <p className="text-sm">No materials available</p>
               </div>
             ) : (
-              <ScrollArea className="h-[200px]">
+              <ScrollArea className="h-[45vh] sm:h-[200px]">
                 <div className="space-y-2">
                   {materials.map(material => (
                     <div 

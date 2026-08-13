@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/backend/client';
 import { useGroups } from '@/context/GroupContext';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,12 +42,17 @@ const getImageUrl = (imagePath: string) => {
   return data.publicUrl;
 };
 
-export const MessageCenter = () => {
+interface MessageCenterProps {
+  /** Start opened - used when the card is the sole content of a mobile tab. */
+  defaultExpanded?: boolean;
+}
+
+export const MessageCenter = ({ defaultExpanded = false }: MessageCenterProps) => {
   const { currentStudent } = useGroups();
   const [messages, setMessages] = useState<TeacherMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [subject, setSubject] = useState('');
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [activeTab, setActiveTab] = useState('inbox');
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<TeacherMessage | null>(null);
@@ -286,7 +291,7 @@ export const MessageCenter = () => {
             </TabsList>
 
             <TabsContent value="inbox" className="mt-4">
-              <ScrollArea className="h-[225px] pr-4">
+              <ScrollArea className="h-[55vh] sm:h-[225px] pr-2 sm:pr-4">
                 {allThreads.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <Mail className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -325,7 +330,8 @@ export const MessageCenter = () => {
                                 key={msg.id} 
                                 className={`p-3 ${!isLastInThread ? 'border-b border-border/30' : ''}`}
                               >
-                                <div className="flex items-start justify-between gap-2 mb-1">
+                                {/* Wraps instead of squeezing the timestamp on narrow screens. */}
+                                <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1 mb-1">
                                   <div className="flex items-center gap-2">
                                     {isFromTeacher ? (
                                       msg.message_type === 'announcement' ? (
@@ -359,7 +365,7 @@ export const MessageCenter = () => {
                                 {msg.subject && thread.messages.length === 1 && (
                                   <p className="font-medium text-sm mb-1">{msg.subject}</p>
                                 )}
-                                <p className="text-sm text-muted-foreground">{msg.message}</p>
+                                <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">{msg.message}</p>
                                 {msg.image_path && (
                                   <img 
                                     src={getImageUrl(msg.image_path)} 
@@ -378,7 +384,7 @@ export const MessageCenter = () => {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="gap-1 h-7 text-xs"
+                                className="gap-1 h-10 md:h-7 text-xs"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleReply(latestMessage);
@@ -398,7 +404,7 @@ export const MessageCenter = () => {
             </TabsContent>
 
             <TabsContent value="sent" className="mt-4">
-              <ScrollArea className="h-[225px] pr-4">
+              <ScrollArea className="h-[55vh] sm:h-[225px] pr-2 sm:pr-4">
                 {sentThreads.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <Send className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -438,7 +444,7 @@ export const MessageCenter = () => {
                               {msg.subject && thread.messages.length === 1 && (
                                 <p className="font-medium text-sm mb-1">{msg.subject}</p>
                               )}
-                              <p className="text-sm text-muted-foreground">{msg.message}</p>
+                              <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">{msg.message}</p>
                               {msg.image_path && (
                                 <img 
                                   src={getImageUrl(msg.image_path)} 

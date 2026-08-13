@@ -7,12 +7,34 @@ export default {
   theme: {
     container: {
       center: true,
-      padding: "2rem",
+      // Mobile-first: tight gutters on phones, roomier as the viewport grows.
+      padding: {
+        DEFAULT: "1rem",
+        sm: "1.5rem",
+        lg: "2rem",
+      },
       screens: {
         "2xl": "1400px",
       },
     },
     extend: {
+      screens: {
+        // Small-phone escape hatch (iPhone SE / older Androids are 320-375px).
+        xs: "400px",
+      },
+      spacing: {
+        "safe-top": "env(safe-area-inset-top, 0px)",
+        "safe-bottom": "env(safe-area-inset-bottom, 0px)",
+        // Height of the mobile bottom tab bar + the device's home indicator.
+        "nav-mobile": "calc(4rem + env(safe-area-inset-bottom, 0px))",
+      },
+      minHeight: {
+        // Avoids the iOS Safari "100vh is taller than the screen" bug.
+        screen: ["100vh", "100dvh"],
+      },
+      height: {
+        screen: ["100vh", "100dvh"],
+      },
       fontFamily: {
         sans: ['DM Sans', 'sans-serif'],
         display: ['Space Grotesk', 'sans-serif'],

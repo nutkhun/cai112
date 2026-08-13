@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGroups } from '@/context/GroupContext';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/backend/client';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Search, UserPlus, Clock, X } from 'lucide-react';
@@ -216,7 +216,7 @@ export const InviteStudentsList = ({
         />
       </div>
 
-      <div className="max-h-[280px] overflow-y-auto space-y-2 pr-1">
+      <div className="max-h-[50vh] sm:max-h-[280px] overflow-y-auto scroll-contain space-y-2 pr-1">
         {filteredStudents.length === 0 ? (
           <div className="text-center py-6 text-muted-foreground">
             {availableStudents.length === 0 

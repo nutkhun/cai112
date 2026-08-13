@@ -1,1 +1,0 @@
-ALTER TABLE public.teacher_messages ADD COLUMN image_path text DEFAULT NULL;

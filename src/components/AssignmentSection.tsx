@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/backend/client';
 import { useGroups } from '@/context/GroupContext';
 import { Upload, FileText, Trash2, Download, Loader2, Users, User, Calendar, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
@@ -24,9 +24,11 @@ interface Assignment {
 
 interface AssignmentSectionProps {
   groupId?: string;
+  /** Start opened - used when the card is the sole content of a mobile tab. */
+  defaultExpanded?: boolean;
 }
 
-export const AssignmentSection = ({ groupId }: AssignmentSectionProps) => {
+export const AssignmentSection = ({ groupId, defaultExpanded = false }: AssignmentSectionProps) => {
   const { currentStudent, getStudentById, getGroupById } = useGroups();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -38,7 +40,7 @@ export const AssignmentSection = ({ groupId }: AssignmentSectionProps) => {
   const [groupProjectDialogOpen, setGroupProjectDialogOpen] = useState(false);
   const [selectedProjectType, setSelectedProjectType] = useState<string>('');
   const [pendingGroupFile, setPendingGroupFile] = useState<File | null>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [individualConfirmOpen, setIndividualConfirmOpen] = useState(false);
   const [pendingIndividualProject, setPendingIndividualProject] = useState<{ file: File; type: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -311,7 +313,7 @@ export const AssignmentSection = ({ groupId }: AssignmentSectionProps) => {
     }
 
     return (
-      <div className="space-y-2 max-h-[250px] overflow-y-auto">
+      <div className="space-y-2 max-h-[55vh] sm:max-h-[250px] overflow-y-auto scroll-contain">
         {items.map((assignment) => {
           const { date, time } = formatDateTime(assignment.created_at);
           const canDelete = assignment.assignment_type === 'group' 
@@ -325,12 +327,13 @@ export const AssignmentSection = ({ groupId }: AssignmentSectionProps) => {
             >
               <FileText className="w-5 h-5 text-primary shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{assignment.file_name}</p>
+                {/* Two lines on phones beats a truncated filename you can't read. */}
+                <p className="text-sm font-medium break-words line-clamp-2 sm:truncate">{assignment.file_name}</p>
                 <p className="text-xs text-muted-foreground">
                   {formatFileSize(assignment.file_size)}
                   {showUploader && ` • by ${getUploaderName(assignment.uploaded_by)}`}
                 </p>
-                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
                     {date}
@@ -345,19 +348,21 @@ export const AssignmentSection = ({ groupId }: AssignmentSectionProps) => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 w-7 p-0"
+                  aria-label={`Download ${assignment.file_name}`}
+                  className="h-10 w-10 p-0 md:h-7 md:w-7"
                   onClick={() => handleDownload(assignment)}
                 >
-                  <Download className="w-3.5 h-3.5" />
+                  <Download className="w-4 h-4 md:w-3.5 md:h-3.5" />
                 </Button>
                 {canDelete && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                    aria-label={`Delete ${assignment.file_name}`}
+                    className="h-10 w-10 p-0 md:h-7 md:w-7 text-destructive hover:text-destructive"
                     onClick={() => handleDelete(assignment)}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4 md:w-3.5 md:h-3.5" />
                   </Button>
                 )}
               </div>

@@ -12,7 +12,8 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-12 items-center justify-center rounded-lg bg-muted/50 p-1.5 text-muted-foreground gap-1 border border-border/50",
+      // Taller on touch so each trigger clears 44px; original height from md up.
+      "inline-flex h-auto min-h-14 items-center justify-center rounded-lg bg-muted/50 p-1.5 text-muted-foreground gap-1 border border-border/50 md:h-12 md:min-h-0",
       className,
     )}
     {...props}
@@ -27,7 +28,9 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium ring-offset-background transition-all duration-200 hover:text-foreground/80 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+      // Tight horizontal padding and smaller type on phones so 3 triggers fit
+      // a 360px row without truncating; original density from sm up.
+      "inline-flex min-h-11 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-md px-2 py-2 text-xs font-medium ring-offset-background transition-all duration-200 hover:text-foreground/80 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 sm:px-4 sm:text-sm md:min-h-0",
       className,
     )}
     {...props}
