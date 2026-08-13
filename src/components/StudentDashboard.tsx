@@ -387,10 +387,10 @@ export const StudentDashboard = () => {
               <div className="min-w-0">
                 {/* Short lockup on phones, full name from md up. */}
                 <h1 className="font-display font-bold text-base leading-tight md:hidden">
-                  CAI112 <span className="text-muted-foreground font-medium">SMS</span>
+                  CAI112
                 </h1>
                 <h1 className="hidden font-display font-bold text-lg md:block">
-                  CAI112 Student Management System (SMS)
+                  CAI112 Student Management System
                 </h1>
               </div>
             </div>
@@ -405,7 +405,10 @@ export const StudentDashboard = () => {
                 <Badge variant="secondary" className="text-xs">{currentStudent.section}</Badge>
               </div>
 
-              <Badge variant="secondary" className="text-xs md:hidden">{currentStudent.section}</Badge>
+              <div className="flex min-w-0 items-center gap-2 md:hidden">
+                <span className="truncate text-sm font-medium">{currentStudent.name}</span>
+                <Badge variant="secondary" className="shrink-0 text-xs">{currentStudent.section}</Badge>
+              </div>
 
               <Button
                 variant="ghost"
