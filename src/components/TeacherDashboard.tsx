@@ -835,10 +835,61 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
     setImporting(true);
     try {
       const data = await importFile.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[];
+
+      // University systems (e.g. BU's URSA) export "Excel" files that are
+      // really HTML pages, often in Thai TIS-620 encoding. SheetJS reads
+      // those as meaningless text lines, so give HTML its own parsing path.
+      const sniff = new TextDecoder('utf-8', { fatal: false }).decode(data.slice(0, 4096));
+      const looksLikeHtml = /^\s*</.test(sniff) && /<(!doctype|html|head|body|table)/i.test(sniff);
+
+      let jsonData: Record<string, any>[];
+
+      if (looksLikeHtml) {
+        // Honour the file's declared charset; TIS-620 decodes via its
+        // windows-874 superset, which browsers support.
+        let charset = (sniff.match(/charset=["']?([\w-]+)/i)?.[1] || 'utf-8').toLowerCase();
+        if (charset === 'tis-620' || charset === 'iso-8859-11') charset = 'windows-874';
+        let text: string;
+        try {
+          text = new TextDecoder(charset).decode(data);
+        } catch {
+          text = new TextDecoder().decode(data);
+        }
+
+        // Collect every table row in the document - URSA splits the student
+        // list across many single-row tables, so read them all as one list.
+        const doc = new DOMParser().parseFromString(text, 'text/html');
+        const rows = Array.from(doc.querySelectorAll('tr')).map((tr) =>
+          Array.from(tr.querySelectorAll('td,th')).map((c) =>
+            (c.textContent || '').replace(/ /g, ' ').trim()
+          )
+        );
+
+        const headerIdx = rows.findIndex(
+          (r) => r.some((c) => /student\s*_?\s*id/i.test(c)) && r.some((c) => /name/i.test(c))
+        );
+        if (headerIdx === -1) {
+          toast.error('Could not find a header row with "Student ID" and "Name" in the file.');
+          setImporting(false);
+          return;
+        }
+        const headers = rows[headerIdx];
+        jsonData = rows
+          .slice(headerIdx + 1)
+          .filter((r) => r.some((c) => c) && !r.some((c) => /student\s*_?\s*id/i.test(c)))
+          .map((r) => {
+            const obj: Record<string, any> = {};
+            headers.forEach((h, i) => {
+              if (h) obj[h] = r[i] ?? '';
+            });
+            return obj;
+          });
+      } else {
+        const workbook = XLSX.read(data);
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[];
+      }
 
       if (jsonData.length === 0) {
         toast.error('No data found in the Excel file');
@@ -876,7 +927,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
         const studentId = findColumn(row, ['student id'], ['studentid', 'student_id', 'รหัส']);
         const indexNumber = findColumn(row, ['index'], ['index number', 'index_number', 'no', 'no.', 'เลขที่', '#']);
 
-        if (name && studentId) {
+        if (name && studentId && /\d/.test(String(studentId))) {
           // Normalize student ID (remove dashes), keep name with prefix intact
           const normalizedId = String(studentId).replace(/-/g, '').trim();
           const fullName = String(name).trim(); // Preserves prefixes like MISS, MR., etc.
@@ -2843,7 +2894,8 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
           <DialogHeader>
             <DialogTitle className="font-display">Import Students from Excel</DialogTitle>
             <DialogDescription>
-              Upload an Excel file with student data. Expected columns: Name, ID, Index Number (optional).
+              Upload an Excel file or a URSA class-list export (.xls) with student data.
+              Expected columns: Name, Student ID, Index (optional).
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
