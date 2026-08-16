@@ -264,7 +264,8 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
 
   // Click-to-sort on table headers. A non-null column overrides the sort
   // dropdown; picking from the dropdown clears it again.
-  const [studentSortCol, setStudentSortCol] = useState<string | null>(null);
+  // Student list opens sorted by index number, low to high.
+  const [studentSortCol, setStudentSortCol] = useState<string | null>('index');
   const [studentSortDir, setStudentSortDir] = useState<'asc' | 'desc'>('asc');
   const [gradingSortCol, setGradingSortCol] = useState<string | null>(null);
   const [gradingSortDir, setGradingSortDir] = useState<'asc' | 'desc'>('asc');
@@ -2066,6 +2067,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                     <TableHeader>
                       <TableRow className="bg-muted/50">
                         {[
+                          { label: 'Index', col: 'index', center: true },
                           { label: 'Name', col: 'name' },
                           { label: 'Student ID', col: 'id' },
                           { label: 'Section', col: 'section' },
@@ -2116,6 +2118,9 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                             className={`cursor-pointer ${selectedStudents.has(student.id) ? 'bg-primary/25 hover:bg-primary/30' : 'hover:bg-muted/30'}`}
                             onClick={() => toggleSelectStudent(student.id)}
                           >
+                            <TableCell className="text-center">
+                              <span className="text-sm text-muted-foreground">{student.indexNumber ?? '–'}</span>
+                            </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-1.5">
                                 <span className="font-medium">{student.name}</span>
