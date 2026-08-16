@@ -101,9 +101,24 @@ export const TeacherMaterialsTab = () => {
   };
   const sections = [...SECTIONS];
 
+  const [allDueDates, setAllDueDates] = useState<{ assignment_name: string; due_date: string; section: string | null }[]>([]);
+
   useEffect(() => {
     fetchMaterials();
+    fetchAllDueDates();
   }, []);
+
+  const fetchAllDueDates = async () => {
+    const { data } = await supabase.from('assignment_due_dates').select('*');
+    if (data) setAllDueDates(data);
+  };
+
+  const dueDateFor = (material: Material) => {
+    if (!material.assignment_name) return null;
+    const matches = allDueDates.filter(d => d.assignment_name === material.assignment_name);
+    const due = matches.find(d => d.section === material.section) || matches.find(d => !d.section) || matches[0];
+    return due ? due.due_date : null;
+  };
 
   const fetchMaterials = async () => {
     const { data, error } = await supabase
@@ -197,6 +212,7 @@ export const TeacherMaterialsTab = () => {
       setUploadDialogOpen(false);
       resetUploadForm();
       fetchMaterials();
+      fetchAllDueDates();
     } catch (error: any) {
       toast.error(`Upload failed: ${error.message}`);
     }
@@ -511,6 +527,16 @@ export const TeacherMaterialsTab = () => {
                             ? material.assignment_name.replace('Midterm Presentation', 'Midterm').replace('Final Project', 'Final')
                             : cat.badge;
                           return <Badge className={`text-xs border-0 ${cat.badgeClass}`}>{label}</Badge>;
+                        })()}
+                        {(() => {
+                          const due = dueDateFor(material);
+                          if (!due) return null;
+                          const overdue = new Date(due.slice(0, 10) + 'T23:59:59') < new Date();
+                          return (
+                            <Badge className={`text-xs border-0 font-semibold ${overdue ? 'bg-destructive/15 text-destructive' : 'bg-amber-500/15 text-amber-600'}`}>
+                              Due {format(new Date(due.slice(0, 10) + 'T00:00:00'), 'EEE, MMM d')}
+                            </Badge>
+                          );
                         })()}
                         <Badge variant="outline" className="text-xs">
                           {material.file_name}

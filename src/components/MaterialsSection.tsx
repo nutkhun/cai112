@@ -39,13 +39,32 @@ const CATEGORY_GROUPS = [
 export const MaterialsSection = () => {
   const { currentStudent } = useGroups();
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [dueDates, setDueDates] = useState<{ assignment_name: string; due_date: string; section: string | null }[]>([]);
   const [isOpen, setIsOpen] = useState(true);
 
   useEffect(() => {
     if (currentStudent) {
       fetchMaterials();
+      fetchDueDates();
     }
   }, [currentStudent]);
+
+  const fetchDueDates = async () => {
+    if (!currentStudent) return;
+    const { data } = await supabase
+      .from('assignment_due_dates')
+      .select('*')
+      .or(`section.eq.${currentStudent.section},section.is.null`);
+    if (data) setDueDates(data);
+  };
+
+  const dueDateFor = (assignmentName: string | null) => {
+    if (!assignmentName) return null;
+    // A section-specific deadline beats the all-sections one.
+    const matches = dueDates.filter(d => d.assignment_name === assignmentName);
+    const due = matches.find(d => d.section) || matches[0];
+    return due ? due.due_date : null;
+  };
 
   const fetchMaterials = async () => {
     if (!currentStudent) return;
@@ -166,6 +185,16 @@ export const MaterialsSection = () => {
                                         ? material.assignment_name.replace('Midterm Presentation', 'Midterm').replace('Final Project', 'Final')
                                         : group.badge}
                                     </Badge>
+                                    {(() => {
+                                      const due = dueDateFor(material.assignment_name);
+                                      if (!due) return null;
+                                      const overdue = new Date(due.slice(0, 10) + 'T23:59:59') < new Date();
+                                      return (
+                                        <Badge className={`border-0 text-[10px] font-semibold ${overdue ? 'bg-destructive/15 text-destructive' : 'bg-amber-500/15 text-amber-600'}`}>
+                                          Due {format(new Date(due.slice(0, 10) + 'T00:00:00'), 'EEE, MMM d')}
+                                        </Badge>
+                                      );
+                                    })()}
                                     <span>{formatFileSize(material.file_size)}</span>
                                     <span>•</span>
                                     <span>{format(new Date(material.created_at), 'MMM d')}</span>
