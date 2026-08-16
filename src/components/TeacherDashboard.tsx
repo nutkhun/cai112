@@ -3213,7 +3213,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
 
       {/* Submission Review Dialog: preview + score without leaving the page */}
       <Dialog open={!!previewAssignment} onOpenChange={(v) => !v && setPreviewAssignment(null)}>
-        <DialogContent className="max-w-none w-[98vw] h-[97vh] flex flex-col gap-3 p-4">
+        <DialogContent className="max-w-none sm:max-w-none w-[98vw] h-[97vh] flex flex-col gap-3 p-4">
           {previewAssignment && (() => {
             const url = submissionUrl(previewAssignment);
             const link = isLinkSubmission(previewAssignment);
