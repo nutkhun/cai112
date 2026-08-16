@@ -63,6 +63,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -256,6 +257,8 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
   };
 
   const zeroScoreRowClass = 'zero-score-row border-l-4 border-l-destructive';
+  // Missing-score highlighting lives only in the Grading table, behind a toggle.
+  const [highlightZeroScores, setHighlightZeroScores] = useState(false);
 
   const fetchUnreadMessages = async () => {
     const { count, error } = await supabase
@@ -1974,7 +1977,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                         return (
                           <TableRow 
                             key={student.id} 
-                            className={`cursor-pointer ${selectedStudents.has(student.id) ? 'bg-primary/25 hover:bg-primary/30' : hasZeroScore ? zeroScoreRowClass : 'hover:bg-muted/30'}`}
+                            className={`cursor-pointer ${selectedStudents.has(student.id) ? 'bg-primary/25 hover:bg-primary/30' : 'hover:bg-muted/30'}`}
                             onClick={() => toggleSelectStudent(student.id)}
                           >
                             <TableCell>
@@ -2477,8 +2480,16 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button 
-                      variant="outline" 
+                    <label className="mr-2 flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+                      <Switch
+                        checked={highlightZeroScores}
+                        onCheckedChange={setHighlightZeroScores}
+                        aria-label="Highlight missing scores"
+                      />
+                      Highlight missing scores
+                    </label>
+                    <Button
+                      variant="outline"
                       onClick={copyFilteredStudentIds}
                       className="gap-2"
                     >
@@ -2612,7 +2623,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                       );
 
                       return (
-                        <TableRow key={student.id} className={hasZeroScore ? zeroScoreRowClass : ''}>
+                        <TableRow key={student.id} className={highlightZeroScores && hasZeroScore ? zeroScoreRowClass : ''}>
                            <TableCell className="text-center">
                              <span className="text-sm text-muted-foreground">{student.indexNumber || index + 1}</span>
                            </TableCell>
