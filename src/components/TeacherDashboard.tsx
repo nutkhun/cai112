@@ -1871,7 +1871,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
           </div>
           <span className="text-muted-foreground hidden sm:inline">•</span>
           <div className="flex items-center gap-2 text-sm hidden sm:flex">
-            <FileText className="w-4 h-4 text-secondary" />
+            <FileText className="w-4 h-4 text-primary" />
             <span className="font-medium">{assignments.filter(a => a.file_name.includes('Assignment 3')).length}</span>
             <span className="text-muted-foreground">A3</span>
           </div>
@@ -1883,7 +1883,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
           </div>
           <span className="text-muted-foreground hidden sm:inline">•</span>
           <div className="flex items-center gap-2 text-sm hidden sm:flex">
-            <ClipboardCheck className="w-4 h-4 text-secondary" />
+            <ClipboardCheck className="w-4 h-4 text-primary" />
             <span className="font-medium">{finalHandedIn}</span>
             <span className="text-muted-foreground">Final</span>
           </div>
