@@ -44,6 +44,7 @@ interface Material {
   file_size: number | null;
   section: string | null;
   category: string | null;
+  assignment_name: string | null;
   created_at: string;
 }
 
@@ -156,7 +157,11 @@ export const TeacherMaterialsTab = () => {
           file_path: filePath,
           file_size: selectedFile.size,
           section: targetSection === 'all' ? null : targetSection,
-          category
+          category,
+          assignment_name:
+            category === 'assignment' ? linkedAssignment || null :
+            category === 'midterm' ? 'Midterm Presentation' :
+            category === 'final' ? 'Final Project' : null
         });
 
       if (insertError) throw insertError;
@@ -350,7 +355,7 @@ export const TeacherMaterialsTab = () => {
 
                   {category === 'assignment' && (
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Which assignment is this for?</label>
+                      <label className="text-sm font-medium">Which assignment is this for? *</label>
                       <Select value={linkedAssignment} onValueChange={setLinkedAssignment}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select assignment" />
@@ -451,7 +456,7 @@ export const TeacherMaterialsTab = () => {
 
                   <Button 
                     onClick={handleUpload} 
-                    disabled={uploading || !title.trim() || !selectedFile || (category === 'assignment' && !!dueDate && !linkedAssignment)}
+                    disabled={uploading || !title.trim() || !selectedFile || (category === 'assignment' && !linkedAssignment)}
                     className="w-full gap-2"
                   >
                     <Upload className="w-4 h-4" />
@@ -502,7 +507,10 @@ export const TeacherMaterialsTab = () => {
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         {(() => {
                           const cat = MATERIAL_CATEGORIES.find(c => c.value === (material.category || 'lecture')) || MATERIAL_CATEGORIES[0];
-                          return <Badge className={`text-xs border-0 ${cat.badgeClass}`}>{cat.badge}</Badge>;
+                          const label = material.assignment_name
+                            ? material.assignment_name.replace('Midterm Presentation', 'Midterm').replace('Final Project', 'Final')
+                            : cat.badge;
+                          return <Badge className={`text-xs border-0 ${cat.badgeClass}`}>{label}</Badge>;
                         })()}
                         <Badge variant="outline" className="text-xs">
                           {material.file_name}

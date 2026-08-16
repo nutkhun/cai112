@@ -24,6 +24,7 @@ interface Material {
   file_size: number | null;
   section: string | null;
   category: string | null;
+  assignment_name: string | null;
   created_at: string;
 }
 
@@ -160,7 +161,11 @@ export const MaterialsSection = () => {
                                     <p className="truncate text-xs text-muted-foreground">{material.description}</p>
                                   )}
                                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <Badge className={`border-0 text-[10px] ${group.badgeClass}`}>{group.badge}</Badge>
+                                    <Badge className={`border-0 text-[10px] ${group.badgeClass}`}>
+                                      {material.assignment_name
+                                        ? material.assignment_name.replace('Midterm Presentation', 'Midterm').replace('Final Project', 'Final')
+                                        : group.badge}
+                                    </Badge>
                                     <span>{formatFileSize(material.file_size)}</span>
                                     <span>•</span>
                                     <span>{format(new Date(material.created_at), 'MMM d')}</span>
