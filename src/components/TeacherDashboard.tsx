@@ -1296,6 +1296,30 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
   const studentsInGroups = students.filter(s => s.groupId).length;
   const ungroupedStudents = students.filter(s => !s.groupId).length;
 
+  // Per-section headcounts for the stats row.
+  const sectionCounts = ['457A', '458A', '458B'].map(sec => ({
+    section: sec,
+    count: students.filter(s => s.section === sec).length,
+  }));
+
+  // Distinct students covered by a Midterm/Final submission: a group upload
+  // covers every member of that group, an individual upload only the uploader.
+  const handedInCount = (label: string) => {
+    const covered = new Set<string>();
+    assignments
+      .filter(a => a.file_name.includes(label))
+      .forEach(a => {
+        if (a.assignment_type === 'group' && a.group_id) {
+          groups.find(g => g.id === a.group_id)?.members.forEach(m => covered.add(m.id));
+        } else if (a.uploaded_by) {
+          covered.add(a.uploaded_by);
+        }
+      });
+    return covered.size;
+  };
+  const midtermHandedIn = handedInCount('Midterm Presentation');
+  const finalHandedIn = handedInCount('Final Project');
+
   // Get unique sections from students
   const sections = ['457A'];
 
@@ -1850,6 +1874,25 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
             <span className="font-medium">{assignments.filter(a => a.file_name.includes('Assignment 3')).length}</span>
             <span className="text-muted-foreground">A3</span>
           </div>
+          <span className="text-muted-foreground hidden sm:inline">•</span>
+          <div className="flex items-center gap-2 text-sm hidden sm:flex">
+            <ClipboardCheck className="w-4 h-4 text-primary" />
+            <span className="font-medium">{midtermHandedIn}</span>
+            <span className="text-muted-foreground">Midterm</span>
+          </div>
+          <span className="text-muted-foreground hidden sm:inline">•</span>
+          <div className="flex items-center gap-2 text-sm hidden sm:flex">
+            <ClipboardCheck className="w-4 h-4 text-secondary" />
+            <span className="font-medium">{finalHandedIn}</span>
+            <span className="text-muted-foreground">Final</span>
+          </div>
+          {sectionCounts.map(({ section, count }) => (
+            <span key={section} className="hidden items-center gap-1.5 text-sm sm:inline-flex">
+              <span className="text-muted-foreground">•</span>
+              <Badge variant="secondary" className="text-xs">{section}</Badge>
+              <span className="font-medium">{count}</span>
+            </span>
+          ))}
         </div>
 
         {/* Section Title */}
