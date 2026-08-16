@@ -144,6 +144,7 @@ const CopyButton = ({ value, label }: { value: string; label: string }) => {
 export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
   const { groups, students, getStudentById, joinGroup, leaveGroup, setGroupLeader, refetchData } = useGroups();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [dueDatesList, setDueDatesList] = useState<{ assignment_name: string; due_date: string; section: string | null }[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('students');
 
@@ -154,7 +155,8 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
       fetchAllAssignments(),
       fetchAllGrades(),
       fetchAbsenceCounts(),
-      fetchUnreadMessages()
+      fetchUnreadMessages(),
+      fetchDueDatesList()
     ]);
   }, [refetchData]);
 
@@ -336,6 +338,15 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
 
     if (!error && data) {
       setAssignments(data as Assignment[]);
+    }
+  };
+
+  const fetchDueDatesList = async () => {
+    const { data, error } = await supabase
+      .from('assignment_due_dates')
+      .select('*');
+    if (!error && data) {
+      setDueDatesList(data as { assignment_name: string; due_date: string; section: string | null }[]);
     }
   };
 
@@ -1321,6 +1332,46 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
   };
   const midtermHandedIn = handedInCount('Midterm Presentation');
   const finalHandedIn = handedInCount('Final Project');
+
+  // Late policy: 10% of the score deducted per started week past the due date.
+  const getLateInfo = (student: Student, assignmentName: string) => {
+    const due = dueDatesList.find(
+      d => d.assignment_name === assignmentName && (!d.section || d.section === student.section)
+    );
+    if (!due) return null;
+    // The whole due day still counts as on time.
+    const deadline = new Date(due.due_date.slice(0, 10) + 'T23:59:59');
+    const submission = assignments
+      .filter(a => a.file_name.startsWith(assignmentName))
+      .find(a =>
+        a.uploaded_by === student.id ||
+        (a.assignment_type === 'group' && !!a.group_id && a.group_id === student.groupId)
+      );
+    const reference = submission ? new Date(submission.created_at) : new Date();
+    const msLate = reference.getTime() - deadline.getTime();
+    if (msLate <= 0) return null;
+    const daysLate = Math.ceil(msLate / 86400000);
+    const weeksLate = Math.ceil(daysLate / 7);
+    return {
+      daysLate,
+      weeksLate,
+      deduction: Math.min(100, weeksLate * 10),
+      submitted: !!submission,
+    };
+  };
+
+  const lateHint = (student: Student, assignmentName: string) => {
+    const info = getLateInfo(student, assignmentName);
+    if (!info) return null;
+    return (
+      <p
+        className="mt-0.5 text-[10px] font-medium leading-tight text-destructive"
+        title={`${info.submitted ? 'Submitted' : 'Still missing'} ${info.daysLate} day${info.daysLate === 1 ? '' : 's'} past the due date. Policy: -10% per started week -> deduct ${info.deduction}% of the score.`}
+      >
+        {info.submitted ? '' : 'missing · '}{info.weeksLate}w late −{info.deduction}%
+      </p>
+    );
+  };
 
   // Get unique sections from students
   const sections = ['457A'];
@@ -2842,6 +2893,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                               className="w-16 h-8 text-center text-sm mx-auto"
                               placeholder="0"
                             />
+                            {lateHint(student, 'Participation')}
                           </TableCell>
                           {/* Individual Assignments */}
                           {['Assignment 1', 'Assignment 2'].map(name => (
@@ -2857,6 +2909,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                                 className="w-16 h-8 text-center text-sm mx-auto"
                                 placeholder="0"
                               />
+                              {lateHint(student, name)}
                             </TableCell>
                           ))}
                           {/* Assignment 3 */}
@@ -2872,6 +2925,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                               className="w-16 h-8 text-center text-sm mx-auto"
                               placeholder="0"
                             />
+                            {lateHint(student, 'Assignment 3')}
                           </TableCell>
                           {/* Midterm Presentation */}
                           <TableCell className="text-center p-1">
@@ -2917,6 +2971,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                                 <StickyNote className="w-3.5 h-3.5 text-muted-foreground" />
                               </Button>
                             </div>
+                            {lateHint(student, 'Midterm Presentation')}
                           </TableCell>
                           {/* Final Project */}
                           <TableCell className="text-center p-1">
@@ -2962,6 +3017,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                                 <StickyNote className="w-3.5 h-3.5 text-muted-foreground" />
                               </Button>
                             </div>
+                            {lateHint(student, 'Final Project')}
                           </TableCell>
                           {/* Total */}
                           <TableCell className="text-center">
