@@ -43,7 +43,7 @@ const ASSIGNMENT_OPTIONS = [
   { name: 'Final Project', type: 'group' },
 ];
 
-const SECTIONS = ['457A'];
+const SECTIONS = ['457A', '458A', '458B'];
 
 export const TeacherDueDatesTab = () => {
   const [dueDates, setDueDates] = useState<DueDate[]>([]);

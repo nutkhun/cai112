@@ -75,6 +75,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
   DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/backend/client';
 import { AbsenceRequestsTab } from './AbsenceRequestsTab';
@@ -1729,38 +1730,45 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                       )}
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="animate-scale-in min-w-[160px]">
-                    <DropdownMenuItem 
-                      onClick={() => setActiveTab('assignments')}
-                      className={`gap-2 ${activeTab === 'assignments' ? 'bg-primary/10 text-primary font-medium' : ''}`}
-                    >
-                      <FileText className="w-4 h-4" />
-                      Assignments
-                      {activeTab === 'assignments' && <Check className="w-4 h-4 ml-auto" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => setActiveTab('grading')}
-                      className={`gap-2 ${activeTab === 'grading' ? 'bg-primary/10 text-primary font-medium' : ''}`}
-                    >
-                      <ClipboardCheck className="w-4 h-4" />
-                      Grading
-                      {activeTab === 'grading' && <Check className="w-4 h-4 ml-auto" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
+                  <DropdownMenuContent align="start" className="animate-scale-in min-w-[210px]">
+                    <DropdownMenuLabel className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Set up · you → students
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem
                       onClick={() => setActiveTab('materials')}
                       className={`gap-2 ${activeTab === 'materials' ? 'bg-primary/10 text-primary font-medium' : ''}`}
                     >
                       <FolderOpen className="w-4 h-4" />
-                      Materials
+                      Briefs & Materials
                       {activeTab === 'materials' && <Check className="w-4 h-4 ml-auto" />}
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       onClick={() => setActiveTab('duedates')}
                       className={`gap-2 ${activeTab === 'duedates' ? 'bg-primary/10 text-primary font-medium' : ''}`}
                     >
                       <Calendar className="w-4 h-4" />
                       Due Dates
                       {activeTab === 'duedates' && <Check className="w-4 h-4 ml-auto" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Review · students → you
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem
+                      onClick={() => setActiveTab('assignments')}
+                      className={`gap-2 ${activeTab === 'assignments' ? 'bg-primary/10 text-primary font-medium' : ''}`}
+                    >
+                      <FileText className="w-4 h-4" />
+                      Submissions
+                      {activeTab === 'assignments' && <Check className="w-4 h-4 ml-auto" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setActiveTab('grading')}
+                      className={`gap-2 ${activeTab === 'grading' ? 'bg-primary/10 text-primary font-medium' : ''}`}
+                    >
+                      <ClipboardCheck className="w-4 h-4" />
+                      Grading
+                      {activeTab === 'grading' && <Check className="w-4 h-4 ml-auto" />}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -1900,9 +1908,9 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
         <h2 className="text-2xl font-bold font-display mb-4">
           {activeTab === 'students' && 'Student List'}
           {activeTab === 'absence' && 'Absence Requests'}
-          {activeTab === 'assignments' && 'Assignments'}
+          {activeTab === 'assignments' && 'Student Submissions'}
           {activeTab === 'grading' && 'Grading'}
-          {activeTab === 'materials' && 'Materials'}
+          {activeTab === 'materials' && 'Briefs & Materials'}
           {activeTab === 'duedates' && 'Due Dates'}
           {activeTab === 'messages' && 'Messages'}
           {activeTab === 'chat' && 'Chat Monitor'}

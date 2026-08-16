@@ -72,7 +72,7 @@ export const DueDateNotifications = () => {
 
       const allSubmissions = [...(studentAssignments || []) as Assignment[], ...groupAssignments];
 
-      // Check which assignments are due soon (within 1 day) and not submitted
+      // Warn from 3 days before the deadline through overdue, until submitted
       const today = startOfDay(new Date());
       const upcomingNotifications: { assignment: DueDate; daysUntilDue: number }[] = [];
 
@@ -80,8 +80,7 @@ export const DueDateNotifications = () => {
         const dueDateParsed = startOfDay(parseISO(dueDate.due_date));
         const daysUntilDue = differenceInDays(dueDateParsed, today);
 
-        // Only show notification if due within 1 day (tomorrow or today) and not submitted
-        if (daysUntilDue >= 0 && daysUntilDue <= 1) {
+        if (daysUntilDue <= 3) {
           // Check if assignment is submitted
           const isSubmitted = allSubmissions.some((submission) => {
             // Handle Assignment 0, 1, 2 (individual)
@@ -153,16 +152,24 @@ export const DueDateNotifications = () => {
         <Alert
           key={assignment.id}
           variant="destructive"
-          className="border-amber-500 bg-amber-500/10 text-amber-900 dark:text-amber-100"
+          className={daysUntilDue < 0
+            ? 'border-destructive bg-destructive/10'
+            : 'border-amber-500 bg-amber-500/10 text-amber-900 dark:text-amber-100'}
         >
-          <Bell className="h-4 w-4 text-amber-600" />
+          <Bell className={`h-4 w-4 ${daysUntilDue < 0 ? 'text-destructive' : 'text-amber-600'}`} />
           <AlertTitle className="flex items-center gap-2 font-display">
-            <span>Assignment Due Reminder</span>
+            <span>{daysUntilDue < 0 ? 'Assignment Overdue' : 'Assignment Due Reminder'}</span>
             <Badge
-              variant={daysUntilDue === 0 ? 'destructive' : 'default'}
-              className={daysUntilDue === 0 ? '' : 'bg-amber-500'}
+              variant={daysUntilDue <= 0 ? 'destructive' : 'default'}
+              className={daysUntilDue <= 0 ? '' : 'bg-amber-500'}
             >
-              {daysUntilDue === 0 ? 'Due Today!' : 'Due Tomorrow'}
+              {daysUntilDue < 0
+                ? `${-daysUntilDue} day${daysUntilDue === -1 ? '' : 's'} late`
+                : daysUntilDue === 0
+                  ? 'Due Today!'
+                  : daysUntilDue === 1
+                    ? 'Due Tomorrow'
+                    : `Due in ${daysUntilDue} days`}
             </Badge>
           </AlertTitle>
           <AlertDescription className="mt-2">
@@ -172,6 +179,12 @@ export const DueDateNotifications = () => {
                 <p className="text-sm flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5" />
                   Due: {format(parseISO(assignment.due_date), 'EEEE, MMMM d, yyyy')}
+                </p>
+                <p className={`text-sm flex items-center gap-1.5 ${daysUntilDue < 0 ? 'text-destructive' : ''}`}>
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  {daysUntilDue < 0
+                    ? 'Your score is being deducted proportionally to how late you are - submit now to limit the loss.'
+                    : 'Late submissions lose marks proportionally - submit before the deadline to keep your full score.'}
                 </p>
                 {assignment.assignment_type === 'group' && !currentStudent?.groupId && (
                   <p className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
