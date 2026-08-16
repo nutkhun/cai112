@@ -131,7 +131,7 @@ export const StudentDashboard = () => {
   // The Chat tab only exists once the student belongs to a group.
   const navItems: MobileNavItem<StudentTab>[] = [
     { id: 'group' as const, label: 'Group', icon: Users },
-    ...(currentGroup ? [{ id: 'chat' as const, label: 'Chat', icon: MessageCircle }] : []),
+    // Group chat is hidden for now; re-add a 'chat' item here to restore it.
     { id: 'work' as const, label: 'Assignment', icon: ClipboardList },
     { id: 'inbox' as const, label: 'Inbox', icon: Mail, badge: unreadCount },
     { id: 'absence' as const, label: 'Absence', icon: CalendarX },
@@ -326,15 +326,14 @@ export const StudentDashboard = () => {
             <Badge variant="default">Active</Badge>
           </div>
           <div className="grid md:grid-cols-2 gap-4">
-            <div className="w-full overflow-hidden">
+            <div className="w-full space-y-4 overflow-hidden">
               <GroupCard group={currentGroup} />
-              <GroupChat groupId={currentGroup.id} />
+              <AssignmentSection groupId={currentGroup.id} />
             </div>
             <div className="space-y-4">
               <MessageCenter />
               <MaterialsSection />
               {manageGroupPanel}
-              <AssignmentSection groupId={currentGroup.id} />
               <AbsenceForm />
             </div>
           </div>
