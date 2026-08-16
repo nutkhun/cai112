@@ -23,8 +23,17 @@ interface Material {
   file_path: string;
   file_size: number | null;
   section: string | null;
+  category: string | null;
   created_at: string;
 }
+
+/** Display order and styling for the categorized list. */
+const CATEGORY_GROUPS = [
+  { value: 'assignment', heading: 'Assignment Instructions', badge: 'Assignment', badgeClass: 'bg-primary/15 text-primary' },
+  { value: 'midterm', heading: 'Midterm Project Brief', badge: 'Midterm', badgeClass: 'bg-amber-500/15 text-amber-600' },
+  { value: 'final', heading: 'Final Project Brief', badge: 'Final', badgeClass: 'bg-destructive/15 text-destructive' },
+  { value: 'lecture', heading: 'Lecture Materials', badge: 'Lecture', badgeClass: 'bg-muted text-foreground' },
+];
 
 export const MaterialsSection = () => {
   const { currentStudent } = useGroups();
@@ -122,37 +131,57 @@ export const MaterialsSection = () => {
                 <p className="text-sm">No materials available</p>
               </div>
             ) : (
-              <ScrollArea className="h-[45vh] sm:h-[200px]">
-                <div className="space-y-2">
-                  {materials.map(material => (
-                    <div 
-                      key={material.id} 
-                      className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-                    >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="p-1.5 rounded bg-primary/10">
-                          <FileText className="w-4 h-4 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{material.title}</p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span>{formatFileSize(material.file_size)}</span>
-                            <span>•</span>
-                            <span>{format(new Date(material.created_at), 'MMM d')}</span>
-                          </div>
+              <ScrollArea className="h-[45vh] sm:h-[280px]">
+                <div className="space-y-4">
+                  {CATEGORY_GROUPS.map(group => {
+                    const groupMaterials = materials.filter(
+                      m => (m.category || 'lecture') === group.value
+                    );
+                    if (groupMaterials.length === 0) return null;
+                    return (
+                      <div key={group.value}>
+                        <p className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {group.heading}
+                          <Badge className={`border-0 text-[10px] ${group.badgeClass}`}>{groupMaterials.length}</Badge>
+                        </p>
+                        <div className="space-y-2">
+                          {groupMaterials.map(material => (
+                            <div
+                              key={material.id}
+                              className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                            >
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div className="p-1.5 rounded bg-primary/10">
+                                  <FileText className="w-4 h-4 text-primary" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm truncate">{material.title}</p>
+                                  {material.description && (
+                                    <p className="truncate text-xs text-muted-foreground">{material.description}</p>
+                                  )}
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <Badge className={`border-0 text-[10px] ${group.badgeClass}`}>{group.badge}</Badge>
+                                    <span>{formatFileSize(material.file_size)}</span>
+                                    <span>•</span>
+                                    <span>{format(new Date(material.created_at), 'MMM d')}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDownload(material)}
+                                className="gap-1 shrink-0"
+                              >
+                                <Download className="w-4 h-4" />
+                                <span className="hidden sm:inline">Download</span>
+                              </Button>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDownload(material)}
-                        className="gap-1 shrink-0"
-                      >
-                        <Download className="w-4 h-4" />
-                        <span className="hidden sm:inline">Download</span>
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </ScrollArea>
             )}

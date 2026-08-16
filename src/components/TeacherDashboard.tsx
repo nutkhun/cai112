@@ -55,7 +55,9 @@ import {
   StickyNote,
   Copy,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Eye,
+  Link2
 } from 'lucide-react';
 import {
   Dialog,
@@ -213,6 +215,9 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
   const [newStudentName, setNewStudentName] = useState('');
   const [newStudentId, setNewStudentId] = useState('');
   const [newStudentSection, setNewStudentSection] = useState<string>('457A');
+
+  // Submission preview dialog state
+  const [previewAssignment, setPreviewAssignment] = useState<Assignment | null>(null);
 
   // Import dialog state
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -645,6 +650,10 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
   };
 
   const handleDownloadFile = async (assignment: Assignment) => {
+    if (/^https?:\/\//i.test(assignment.file_path)) {
+      window.open(assignment.file_path, '_blank');
+      return;
+    }
     try {
       const { data, error } = await supabase.storage
         .from('group-assignments')
@@ -1359,6 +1368,25 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
       deduction: Math.min(100, weeksLate * 10),
       submitted: !!submission,
     };
+  };
+
+  // Which grade a submission maps to, so the teacher can score while reviewing.
+  const gradeTargetFromFileName = (fileName: string) => {
+    if (fileName.startsWith('Assignment 1')) return { name: 'Assignment 1', max: 5, rubric: false };
+    if (fileName.startsWith('Assignment 2')) return { name: 'Assignment 2', max: 5, rubric: false };
+    if (fileName.startsWith('Assignment 3')) return { name: 'Assignment 3', max: 10, rubric: false };
+    if (fileName.startsWith('Participation')) return { name: 'Participation', max: 10, rubric: false };
+    if (fileName.startsWith('Midterm Presentation')) return { name: 'Midterm Presentation', max: 30, rubric: true };
+    if (fileName.startsWith('Final Project')) return { name: 'Final Project', max: 40, rubric: true };
+    return null;
+  };
+
+  const isLinkSubmission = (a: Assignment) => /^https?:\/\//i.test(a.file_path);
+
+  const submissionUrl = (a: Assignment) => {
+    if (isLinkSubmission(a)) return a.file_path;
+    const { data } = supabase.storage.from('group-assignments').getPublicUrl(a.file_path);
+    return data.publicUrl;
   };
 
   const lateHint = (student: Student, assignmentName: string) => {
@@ -2508,7 +2536,9 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                           <TableRow key={assignment.id} className="hover:bg-muted/30">
                             <TableCell>
                               <div className="flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-primary shrink-0" />
+                                {isLinkSubmission(assignment)
+                                  ? <Link2 className="w-4 h-4 text-primary shrink-0" />
+                                  : <FileText className="w-4 h-4 text-primary shrink-0" />}
                                 <span className="truncate max-w-[250px]">{assignment.file_name}</span>
                               </div>
                             </TableCell>
@@ -2550,8 +2580,18 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-1">
-                                <Button 
-                                  variant="ghost" 
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setPreviewAssignment(assignment)}
+                                  title="Review & score"
+                                  className="gap-1"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                  <span className="hidden lg:inline">Review</span>
+                                </Button>
+                                <Button
+                                  variant="ghost"
                                   size="sm"
                                   onClick={() => handleDownloadFile(assignment)}
                                   title="Download"
@@ -3168,6 +3208,124 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
               {importing ? 'Importing...' : 'Import'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Submission Review Dialog: preview + score without leaving the page */}
+      <Dialog open={!!previewAssignment} onOpenChange={(v) => !v && setPreviewAssignment(null)}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[88vh] flex flex-col gap-3">
+          {previewAssignment && (() => {
+            const url = submissionUrl(previewAssignment);
+            const link = isLinkSubmission(previewAssignment);
+            const ext = link ? '' : (previewAssignment.file_name.split('.').pop() || '').toLowerCase();
+            const target = gradeTargetFromFileName(previewAssignment.file_name);
+            const uploader = students.find(s => s.id === previewAssignment.uploaded_by);
+            const currentScore = target ? getStudentGrade(previewAssignment.uploaded_by, target.name) : '';
+            return (
+              <>
+                <DialogHeader className="shrink-0">
+                  <DialogTitle className="flex flex-wrap items-center gap-2 pr-8 text-base">
+                    {link ? <Link2 className="w-4 h-4 text-primary shrink-0" /> : <FileText className="w-4 h-4 text-primary shrink-0" />}
+                    <span className="truncate">{previewAssignment.file_name}</span>
+                    <Badge variant="secondary" className="text-xs">
+                      {getUploaderName(previewAssignment.uploaded_by)}
+                    </Badge>
+                    {previewAssignment.assignment_type === 'group' && (
+                      <Badge variant="default" className="text-xs">{getGroupName(previewAssignment.group_id)}</Badge>
+                    )}
+                  </DialogTitle>
+                </DialogHeader>
+
+                <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-muted/30">
+                  {link ? (
+                    <div className="flex h-full flex-col">
+                      <div className="flex items-center justify-between gap-2 border-b bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
+                        <span className="truncate">{url}</span>
+                        <Button variant="outline" size="sm" className="h-7 gap-1 shrink-0" onClick={() => window.open(url, '_blank')}>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          Open in new tab
+                        </Button>
+                      </div>
+                      <iframe src={url} className="min-h-0 flex-1 w-full" title="Link preview" />
+                    </div>
+                  ) : ext === 'pdf' ? (
+                    <iframe src={url} className="h-full w-full" title="PDF preview" />
+                  ) : ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext) ? (
+                    <div className="flex h-full items-center justify-center overflow-auto p-4">
+                      <img src={url} alt={previewAssignment.file_name} className="max-h-full max-w-full object-contain" />
+                    </div>
+                  ) : ['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(ext) ? (
+                    <iframe
+                      src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`}
+                      className="h-full w-full"
+                      title="Document preview"
+                    />
+                  ) : (
+                    <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
+                      <FileText className="w-10 h-10 opacity-50" />
+                      <p className="text-sm">No in-app preview for .{ext} files</p>
+                      <Button variant="outline" onClick={() => handleDownloadFile(previewAssignment)} className="gap-2">
+                        <Download className="w-4 h-4" />
+                        Download to view
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
+                  {target ? (
+                    target.rubric ? (
+                      <>
+                        <p className="text-sm">
+                          <span className="font-medium">{target.name}</span>
+                          <span className="text-muted-foreground"> · current score: {Math.round(parseFloat(currentScore) || 0)}/{target.max}</span>
+                          {previewAssignment.assignment_type === 'group' && (
+                            <span className="text-muted-foreground"> · saves to every member of the group</span>
+                          )}
+                        </p>
+                        <Button
+                          variant="gradient"
+                          className="gap-2"
+                          onClick={() => {
+                            setRubricStudentId(previewAssignment.uploaded_by);
+                            setRubricStudentName(uploader?.name || getUploaderName(previewAssignment.uploaded_by));
+                            setRubricAssignmentType(target.name as 'Midterm Presentation' | 'Final Project');
+                            setRubricDialogOpen(true);
+                          }}
+                        >
+                          <ClipboardCheck className="w-4 h-4" />
+                          Score with Rubric
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm">
+                          <span className="font-medium">{target.name}</span>
+                          <span className="text-muted-foreground"> · max {target.max}</span>
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            max={target.max}
+                            step="0.5"
+                            value={currentScore}
+                            onChange={(e) => handleGradeInputChange(previewAssignment.uploaded_by, target.name, e.target.value, target.max)}
+                            onBlur={() => saveGrade(previewAssignment.uploaded_by, target.name, 'individual', target.max)}
+                            className="h-9 w-20 text-center"
+                            placeholder="0"
+                          />
+                          <span className="text-sm text-muted-foreground">/ {target.max} · saves automatically</span>
+                        </div>
+                      </>
+                    )
+                  ) : (
+                    <p className="text-sm text-muted-foreground">This submission is not linked to a graded assignment.</p>
+                  )}
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/backend/client';
 import { useGroups } from '@/context/GroupContext';
-import { Upload, FileText, Trash2, Download, Loader2, Users, User, Calendar, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Upload, FileText, Trash2, Download, Loader2, Users, User, Calendar, Clock, ChevronDown, ChevronUp, Link2, ExternalLink } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
 interface Assignment {
@@ -45,6 +46,13 @@ export const AssignmentSection = ({ groupId, defaultExpanded = false }: Assignme
   const [pendingIndividualProject, setPendingIndividualProject] = useState<{ file: File; type: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const groupFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Link submissions (Google Slides, Canva, etc.)
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkChoice, setLinkChoice] = useState('');
+  const [linkTarget, setLinkTarget] = useState<'group' | 'individual'>('individual');
+  const [linkSaving, setLinkSaving] = useState(false);
 
   const group = groupId ? getGroupById(groupId) : null;
   const isLeader = group?.leaderId === currentStudent?.id;
@@ -239,12 +247,14 @@ export const AssignmentSection = ({ groupId, defaultExpanded = false }: Assignme
     }
 
     try {
-      // Delete from storage
-      const { error: storageError } = await supabase.storage
-        .from('group-assignments')
-        .remove([assignment.file_path]);
+      // Link submissions have nothing in storage to remove.
+      if (!isLinkSubmission(assignment)) {
+        const { error: storageError } = await supabase.storage
+          .from('group-assignments')
+          .remove([assignment.file_path]);
 
-      if (storageError) throw storageError;
+        if (storageError) throw storageError;
+      }
 
       // Delete from database
       const { error: dbError } = await supabase
@@ -262,12 +272,82 @@ export const AssignmentSection = ({ groupId, defaultExpanded = false }: Assignme
     }
   };
 
+  const isLinkSubmission = (a: Assignment) => /^https?:\/\//i.test(a.file_path);
+
   const handleDownload = async (assignment: Assignment) => {
+    if (isLinkSubmission(assignment)) {
+      window.open(assignment.file_path, '_blank');
+      return;
+    }
     const { data } = supabase.storage
       .from('group-assignments')
       .getPublicUrl(assignment.file_path);
 
     window.open(data.publicUrl, '_blank');
+  };
+
+  const handleSubmitLink = async () => {
+    if (!currentStudent || !linkChoice) {
+      toast.error('Please choose what this link is for');
+      return;
+    }
+    let url = linkUrl.trim();
+    if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+    try {
+      new URL(url);
+    } catch {
+      toast.error('Please enter a valid link (e.g. https://docs.google.com/...)');
+      return;
+    }
+
+    setLinkSaving(true);
+    try {
+      const host = new URL(url).hostname.replace(/^www\./, '');
+      let prefix: string;
+      let type: 'group' | 'individual';
+      if (linkTarget === 'group') {
+        prefix = `${linkChoice} - `;
+        type = 'group';
+      } else if (linkChoice === 'Midterm' || linkChoice === 'Final') {
+        prefix = `${linkChoice === 'Midterm' ? 'Midterm Presentation' : 'Final Project'} (Individual) - `;
+        type = 'individual';
+      } else {
+        prefix = `Assignment ${linkChoice} - `;
+        type = 'individual';
+      }
+      const folder = type === 'individual' ? `individual-${currentStudent.id}` : storageFolder;
+
+      const { error } = await supabase.from('assignments').insert({
+        group_id: folder,
+        file_name: `${prefix}Link: ${host}`,
+        file_path: url,
+        file_size: null,
+        uploaded_by: currentStudent.id,
+        assignment_type: type,
+      });
+      if (error) throw error;
+
+      // Same auto-grade as file uploads for graded individual assignments.
+      if (type === 'individual' && ['1', '2', '3'].includes(linkChoice)) {
+        await supabase.from('grades').upsert({
+          student_id: currentStudent.id,
+          assignment_name: `Assignment ${linkChoice}`,
+          assignment_type: 'individual',
+          score: 5,
+          max_score: 5,
+        }, { onConflict: 'student_id,assignment_name' });
+      }
+
+      toast.success('Link submitted!');
+      setLinkDialogOpen(false);
+      setLinkUrl('');
+      setLinkChoice('');
+      fetchAssignments();
+    } catch (err) {
+      toast.error('Failed to submit link');
+    } finally {
+      setLinkSaving(false);
+    }
   };
 
   const formatFileSize = (bytes: number | null) => {
@@ -325,7 +405,9 @@ export const AssignmentSection = ({ groupId, defaultExpanded = false }: Assignme
               key={assignment.id}
               className="flex items-start gap-3 p-3 rounded-lg bg-muted/30"
             >
-              <FileText className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+              {isLinkSubmission(assignment)
+                ? <Link2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                : <FileText className="w-5 h-5 text-primary shrink-0 mt-0.5" />}
               <div className="flex-1 min-w-0">
                 {/* Two lines on phones beats a truncated filename you can't read. */}
                 <p className="text-sm font-medium break-words line-clamp-2 sm:truncate">{assignment.file_name}</p>
@@ -429,24 +511,35 @@ export const AssignmentSection = ({ groupId, defaultExpanded = false }: Assignme
                 id="assignment-upload-group"
               />
               {isLeader ? (
-                <Button
-                  variant="outline"
-                  className="w-full gap-2"
-                  onClick={() => groupFileInputRef.current?.click()}
-                  disabled={uploading}
-                >
-                  {uploading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4" />
-                      Upload Group Assignment
-                    </>
-                  )}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 gap-2"
+                    onClick={() => groupFileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    {uploading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        Upload File
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1 gap-2"
+                    onClick={() => { setLinkTarget('group'); setLinkChoice(''); setLinkDialogOpen(true); }}
+                    disabled={uploading}
+                  >
+                    <Link2 className="w-4 h-4" />
+                    Submit a Link
+                  </Button>
+                </div>
               ) : (
                 <p className="text-xs text-muted-foreground text-center py-2 px-3 rounded-lg bg-muted/50">
                   Only the group leader can upload group assignments
@@ -473,24 +566,35 @@ export const AssignmentSection = ({ groupId, defaultExpanded = false }: Assignme
                 className="hidden"
                 id="assignment-upload-individual"
               />
-              <Button
-                variant="outline"
-                className="w-full gap-2"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-              >
-                {uploading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4" />
-                    Upload My Assignment
-                  </>
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 gap-2"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      Upload File
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 gap-2"
+                  onClick={() => { setLinkTarget('individual'); setLinkChoice(''); setLinkDialogOpen(true); }}
+                  disabled={uploading}
+                >
+                  <Link2 className="w-4 h-4" />
+                  Submit a Link
+                </Button>
+              </div>
             </div>
 
             {loading ? (
@@ -502,6 +606,64 @@ export const AssignmentSection = ({ groupId, defaultExpanded = false }: Assignme
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Link Submission Dialog */}
+        <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Link2 className="w-5 h-5 text-primary" />
+                Submit a Link
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Link URL</Label>
+                <Input
+                  placeholder="https://docs.google.com/presentation/... or Canva link"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  inputMode="url"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Make sure the link is shared so anyone with it can view.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>This link is for</Label>
+                <Select value={linkChoice} onValueChange={setLinkChoice}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Choose assignment" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border-border z-50">
+                    {linkTarget === 'group' ? (
+                      <>
+                        <SelectItem value="Midterm Presentation">Midterm Presentation</SelectItem>
+                        <SelectItem value="Final Project">Final Project</SelectItem>
+                      </>
+                    ) : (
+                      <>
+                        <SelectItem value="0">Assignment 0</SelectItem>
+                        <SelectItem value="1">Assignment 1</SelectItem>
+                        <SelectItem value="2">Assignment 2</SelectItem>
+                        <SelectItem value="3">Assignment 3</SelectItem>
+                        <SelectItem value="Midterm">Midterm Presentation (Individual)</SelectItem>
+                        <SelectItem value="Final">Final Project (Individual)</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setLinkDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleSubmitLink} disabled={linkSaving || !linkUrl.trim() || !linkChoice} className="gap-2">
+                {linkSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                Submit Link
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Assignment Number Selection Dialog */}
         <Dialog open={assignmentDialogOpen} onOpenChange={(open) => {

@@ -43,14 +43,27 @@ interface Material {
   file_path: string;
   file_size: number | null;
   section: string | null;
+  category: string | null;
   created_at: string;
 }
+
+/** Upload categories; assignment-like ones can carry a due date. */
+export const MATERIAL_CATEGORIES = [
+  { value: 'lecture', label: 'Lecture Material', badge: 'Lecture', dueDateFor: null as string | null, badgeClass: 'bg-muted text-foreground' },
+  { value: 'assignment', label: 'Assignment Instruction', badge: 'Assignment', dueDateFor: 'choose', badgeClass: 'bg-primary/15 text-primary' },
+  { value: 'midterm', label: 'Midterm Project Brief', badge: 'Midterm', dueDateFor: 'Midterm Presentation', badgeClass: 'bg-amber-500/15 text-amber-600' },
+  { value: 'final', label: 'Final Project Brief', badge: 'Final', dueDateFor: 'Final Project', badgeClass: 'bg-destructive/15 text-destructive' },
+];
+
+const ASSIGNMENT_NAMES = ['Assignment 0', 'Assignment 1', 'Assignment 2', 'Assignment 3'];
 
 export const TeacherMaterialsTab = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sectionFilter, setSectionFilter] = useState<string>('all');
   
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
   // Upload state
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -59,6 +72,9 @@ export const TeacherMaterialsTab = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [category, setCategory] = useState<string>('lecture');
+  const [linkedAssignment, setLinkedAssignment] = useState<string>('');
+  const [dueDate, setDueDate] = useState<string>('');
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -139,12 +155,40 @@ export const TeacherMaterialsTab = () => {
           file_name: selectedFile.name,
           file_path: filePath,
           file_size: selectedFile.size,
-          section: targetSection === 'all' ? null : targetSection
+          section: targetSection === 'all' ? null : targetSection,
+          category
         });
 
       if (insertError) throw insertError;
 
-      toast.success('Material uploaded successfully');
+      // Assignment-like uploads can set their due date in the same step.
+      const catDef = MATERIAL_CATEGORIES.find(c => c.value === category);
+      const dueAssignment = catDef?.dueDateFor === 'choose' ? linkedAssignment : catDef?.dueDateFor;
+      if (dueAssignment && dueDate) {
+        const section = targetSection === 'all' ? null : targetSection;
+        const { data: existing } = await supabase
+          .from('assignment_due_dates')
+          .select('*')
+          .eq('assignment_name', dueAssignment);
+        const match = (existing || []).find((d: { section: string | null }) => d.section === section);
+        const isGroup = dueAssignment === 'Midterm Presentation' || dueAssignment === 'Final Project';
+        const { error: dueError } = match
+          ? await supabase.from('assignment_due_dates').update({ due_date: dueDate }).eq('id', match.id)
+          : await supabase.from('assignment_due_dates').insert({
+              assignment_name: dueAssignment,
+              assignment_type: isGroup ? 'group' : 'individual',
+              due_date: dueDate,
+              section,
+            });
+        if (dueError) {
+          toast.error('Material saved, but setting the due date failed - set it under Due Dates.');
+        } else {
+          toast.success(`Uploaded, due date for ${dueAssignment} set to ${dueDate}`);
+        }
+      } else {
+        toast.success('Material uploaded successfully');
+      }
+
       setUploadDialogOpen(false);
       resetUploadForm();
       fetchMaterials();
@@ -160,6 +204,9 @@ export const TeacherMaterialsTab = () => {
     setDescription('');
     setTargetSection('all');
     setSelectedFile(null);
+    setCategory('lecture');
+    setLinkedAssignment('');
+    setDueDate('');
   };
 
   const handleDownload = async (material: Material) => {
@@ -204,14 +251,16 @@ export const TeacherMaterialsTab = () => {
       m.file_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.description?.toLowerCase().includes(searchQuery.toLowerCase());
     
-    const matchesSection = sectionFilter === 'all' || 
-      m.section === sectionFilter || 
+    const matchesSection = sectionFilter === 'all' ||
+      m.section === sectionFilter ||
       m.section === null;
 
-    return matchesSearch && matchesSection;
+    const matchesCategory = categoryFilter === 'all' || (m.category || 'lecture') === categoryFilter;
+
+    return matchesSearch && matchesSection && matchesCategory;
   });
 
-  const hasFilters = sectionFilter !== 'all' || searchQuery !== '';
+  const hasFilters = sectionFilter !== 'all' || searchQuery !== '' || categoryFilter !== 'all';
 
   return (
     <div className="space-y-4">
@@ -232,6 +281,18 @@ export const TeacherMaterialsTab = () => {
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-muted-foreground" />
               
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-[150px] h-9">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {MATERIAL_CATEGORIES.map(c => (
+                    <SelectItem key={c.value} value={c.value}>{c.badge}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
               <Select value={sectionFilter} onValueChange={setSectionFilter}>
                 <SelectTrigger className="w-[120px] h-9">
                   <SelectValue placeholder="Section" />
@@ -251,6 +312,7 @@ export const TeacherMaterialsTab = () => {
                   onClick={() => {
                     setSectionFilter('all');
                     setSearchQuery('');
+                    setCategoryFilter('all');
                   }}
                   className="gap-1 h-9"
                 >
@@ -272,6 +334,50 @@ export const TeacherMaterialsTab = () => {
                   <DialogTitle>Upload Course Material</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Category *</label>
+                    <Select value={category} onValueChange={(v) => { setCategory(v); setLinkedAssignment(''); }}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MATERIAL_CATEGORIES.map(c => (
+                          <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {category === 'assignment' && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Which assignment is this for?</label>
+                      <Select value={linkedAssignment} onValueChange={setLinkedAssignment}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select assignment" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ASSIGNMENT_NAMES.map(name => (
+                            <SelectItem key={name} value={name}>{name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {category !== 'lecture' && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Due date (optional - set it right here)</label>
+                      <Input
+                        type="date"
+                        value={dueDate}
+                        onChange={(e) => setDueDate(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Saving with a due date updates the deadline students see and the late-deduction tracking.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Title *</label>
                     <Input
@@ -345,7 +451,7 @@ export const TeacherMaterialsTab = () => {
 
                   <Button 
                     onClick={handleUpload} 
-                    disabled={uploading || !title.trim() || !selectedFile}
+                    disabled={uploading || !title.trim() || !selectedFile || (category === 'assignment' && !!dueDate && !linkedAssignment)}
                     className="w-full gap-2"
                   >
                     <Upload className="w-4 h-4" />
@@ -394,6 +500,10 @@ export const TeacherMaterialsTab = () => {
                         </p>
                       )}
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        {(() => {
+                          const cat = MATERIAL_CATEGORIES.find(c => c.value === (material.category || 'lecture')) || MATERIAL_CATEGORIES[0];
+                          return <Badge className={`text-xs border-0 ${cat.badgeClass}`}>{cat.badge}</Badge>;
+                        })()}
                         <Badge variant="outline" className="text-xs">
                           {material.file_name}
                         </Badge>
