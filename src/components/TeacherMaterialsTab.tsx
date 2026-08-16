@@ -1,3 +1,4 @@
+import { SECTIONS } from '@/types';
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/backend/client';
@@ -81,7 +82,7 @@ export const TeacherMaterialsTab = () => {
       setSelectedFile(files[0]);
     }
   };
-  const sections = ['457A'];
+  const sections = [...SECTIONS];
 
   useEffect(() => {
     fetchMaterials();

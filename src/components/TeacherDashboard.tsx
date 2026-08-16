@@ -1,3 +1,4 @@
+import { SECTIONS } from '@/types';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
 import { useGroups } from '@/context/GroupContext';
@@ -1374,7 +1375,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
   };
 
   // Get unique sections from students
-  const sections = ['457A'];
+  const sections = [...SECTIONS];
 
   // Filter and sort students
   const filteredStudents = students.filter(student => {

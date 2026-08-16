@@ -1,3 +1,4 @@
+import { SECTIONS } from '@/types';
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/backend/client';
@@ -77,7 +78,7 @@ export const TeacherMessagesTab = () => {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const sections = ['457A'];
+  const sections = [...SECTIONS];
 
   useEffect(() => {
     fetchMessages();

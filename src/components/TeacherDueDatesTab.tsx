@@ -1,3 +1,4 @@
+import { SECTIONS } from '@/types';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,7 +44,6 @@ const ASSIGNMENT_OPTIONS = [
   { name: 'Final Project', type: 'group' },
 ];
 
-const SECTIONS = ['457A', '458A', '458B'];
 
 export const TeacherDueDatesTab = () => {
   const [dueDates, setDueDates] = useState<DueDate[]>([]);

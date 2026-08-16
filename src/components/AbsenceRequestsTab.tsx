@@ -1,3 +1,4 @@
+import { SECTIONS } from '@/types';
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/backend/client';
@@ -44,7 +45,7 @@ export const AbsenceRequestsTab = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'date' | 'name' | 'submitted'>('submitted');
 
-  const sections = ['457A'];
+  const sections = [...SECTIONS];
 
   useEffect(() => {
     fetchAbsenceRequests();

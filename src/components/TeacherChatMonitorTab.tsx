@@ -1,3 +1,4 @@
+import { SECTIONS } from '@/types';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/backend/client';
 import { useGroups } from '@/context/GroupContext';
@@ -70,7 +71,7 @@ export const TeacherChatMonitorTab = () => {
   const [deleting, setDeleting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const sections = ['457A'];
+  const sections = [...SECTIONS];
 
   // Fetch group stats on mount
   useEffect(() => {
