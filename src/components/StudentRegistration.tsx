@@ -28,6 +28,7 @@ export const StudentRegistration = ({
   const [pendingStudent, setPendingStudent] = useState<Student | null>(null);
   const [showTeacherPinDialog, setShowTeacherPinDialog] = useState(false);
   const [teacherPin, setTeacherPin] = useState('');
+  const [showLoginErrorDialog, setShowLoginErrorDialog] = useState(false);
   const {
     addStudent,
     updateStudentPin,
@@ -47,7 +48,9 @@ export const StudentRegistration = ({
     if (!result) {
       toast.error('Registration failed. Please try again.');
     } else if ('error' in result) {
-      toast.error(result.error);
+      // A dialog is harder to miss than a toast on a phone.
+      setPin('');
+      setShowLoginErrorDialog(true);
     } else if (result.requiresPinChange) {
       setPendingStudent(result.student);
       setShowPinChangeDialog(true);
@@ -171,6 +174,24 @@ export const StudentRegistration = ({
           </Button>
         </div>
       </div>
+
+      <Dialog open={showLoginErrorDialog} onOpenChange={setShowLoginErrorDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="w-5 h-5 text-destructive" />
+              Login not successful
+            </DialogTitle>
+            <DialogDescription className="pt-2 text-base">
+              Please check your login information. Watch out for misspelled input text or a
+              wrong registration section.
+            </DialogDescription>
+          </DialogHeader>
+          <Button className="w-full" onClick={() => setShowLoginErrorDialog(false)}>
+            Try Again
+          </Button>
+        </DialogContent>
+      </Dialog>
 
       <ChangePinDialog open={showPinChangeDialog} onPinChanged={handlePinChanged} />
 
