@@ -52,7 +52,9 @@ import {
   FolderOpen,
   Check,
   StickyNote,
-  Copy
+  Copy,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import {
   Dialog,
@@ -259,6 +261,13 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
   const zeroScoreRowClass = 'zero-score-row border-l-4 border-l-destructive';
   // Missing-score highlighting lives only in the Grading table, behind a toggle.
   const [highlightZeroScores, setHighlightZeroScores] = useState(false);
+
+  // Click-to-sort on table headers. A non-null column overrides the sort
+  // dropdown; picking from the dropdown clears it again.
+  const [studentSortCol, setStudentSortCol] = useState<string | null>(null);
+  const [studentSortDir, setStudentSortDir] = useState<'asc' | 'desc'>('asc');
+  const [gradingSortCol, setGradingSortCol] = useState<string | null>(null);
+  const [gradingSortDir, setGradingSortDir] = useState<'asc' | 'desc'>('asc');
 
   const fetchUnreadMessages = async () => {
     const { count, error } = await supabase
@@ -1314,7 +1323,77 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
     return matchesSearch && matchesSection && matchesGroup && matchesStatus;
   });
 
+  // Shared column accessor for header-click sorting in both tables.
+  const columnSortValue = (s: Student, col: string): string | number => {
+    const grade = (type: string) => parseFloat(getStudentGrade(s.id, type)) || 0;
+    switch (col) {
+      case 'index': return s.indexNumber ?? Number.MAX_SAFE_INTEGER;
+      case 'name': return s.name;
+      case 'id': return s.studentId;
+      case 'section': return s.section;
+      case 'group': return getGroupName(s.groupId) || '￿'; // ungrouped last
+      case 'role': {
+        const g = groups.find(gr => gr.id === s.groupId);
+        return g ? (s.id === g.leaderId ? 'Leader' : 'Member') : '￿';
+      }
+      case 'participation': return grade('Participation');
+      case 'a1': return grade('Assignment 1');
+      case 'a2': return grade('Assignment 2');
+      case 'a3': return grade('Assignment 3');
+      case 'midterm': return grade('Midterm Presentation');
+      case 'final': return grade('Final Project');
+      case 'total':
+        return grade('Assignment 1') + grade('Assignment 2') + grade('Assignment 3') +
+          grade('Participation') + grade('Midterm Presentation') + grade('Final Project');
+      case 'absence': return getAbsenceRate(s.id);
+      default: return '';
+    }
+  };
+
+  const compareByColumn = (a: Student, b: Student, col: string, dir: 'asc' | 'desc') => {
+    const va = columnSortValue(a, col);
+    const vb = columnSortValue(b, col);
+    const cmp = typeof va === 'number' && typeof vb === 'number'
+      ? va - vb
+      : String(va).localeCompare(String(vb));
+    return (dir === 'asc' ? cmp : -cmp) || a.name.localeCompare(b.name);
+  };
+
+  const toggleSort = (
+    col: string,
+    activeCol: string | null,
+    setCol: (c: string | null) => void,
+    setDir: React.Dispatch<React.SetStateAction<'asc' | 'desc'>>
+  ) => {
+    if (activeCol === col) {
+      setDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setCol(col);
+      setDir('asc');
+    }
+  };
+
+  const SortHead = ({ label, col, activeCol, dir, onSort, className, title }: {
+    label: string; col: string; activeCol: string | null; dir: 'asc' | 'desc';
+    onSort: (col: string) => void; className?: string; title?: string;
+  }) => (
+    <TableHead
+      className={`font-semibold cursor-pointer select-none ${className || ''}`}
+      title={title}
+      onClick={() => onSort(col)}
+      aria-sort={activeCol === col ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {activeCol === col
+          ? (dir === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />)
+          : <ArrowUpDown className="w-3 h-3 opacity-30" />}
+      </span>
+    </TableHead>
+  );
+
   const sortedStudents = [...filteredStudents].sort((a, b) => {
+    if (studentSortCol) return compareByColumn(a, b, studentSortCol, studentSortDir);
     switch (studentSort) {
       case 'name':
         return a.name.localeCompare(b.name);
@@ -1449,6 +1528,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
         return matchesSearch && matchesSection && matchesGroup && matchesMissingFilter(s.id, s.groupId || null);
       })
       .sort((a, b) => {
+        if (gradingSortCol) return compareByColumn(a, b, gradingSortCol, gradingSortDir);
         switch (gradingSort) {
           case 'index':
             return (a.indexNumber || 999) - (b.indexNumber || 999);
@@ -1849,7 +1929,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
 
                   <div className="flex items-center gap-2">
                     <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
-                    <Select value={studentSort} onValueChange={(v) => setStudentSort(v as typeof studentSort)}>
+                    <Select value={studentSort} onValueChange={(v) => { setStudentSort(v as typeof studentSort); setStudentSortCol(null); }}>
                       <SelectTrigger className="w-[120px] h-9">
                         <SelectValue placeholder="Sort by" />
                       </SelectTrigger>
@@ -1942,18 +2022,31 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
-                        <TableHead className="font-semibold">Name</TableHead>
-                        <TableHead className="font-semibold">Student ID</TableHead>
-                        <TableHead className="font-semibold">Section</TableHead>
-                        <TableHead className="font-semibold">Group</TableHead>
-                        <TableHead className="font-semibold">Role</TableHead>
-                        <TableHead className="font-semibold text-center" title="Max: 10">Participation</TableHead>
-                        <TableHead className="font-semibold text-center" title="Max: 5">Asgn 1</TableHead>
-                        <TableHead className="font-semibold text-center" title="Max: 5">Asgn 2</TableHead>
-                        <TableHead className="font-semibold text-center" title="Max: 10">Asgn 3</TableHead>
-                        <TableHead className="font-semibold text-center" title="Max: 30">Midterm</TableHead>
-                        <TableHead className="font-semibold text-center" title="Max: 40">Final</TableHead>
-                        <TableHead className="font-semibold text-center" title="(Approved absences / 14) × 100">Absence Rate</TableHead>
+                        {[
+                          { label: 'Name', col: 'name' },
+                          { label: 'Student ID', col: 'id' },
+                          { label: 'Section', col: 'section' },
+                          { label: 'Group', col: 'group' },
+                          { label: 'Role', col: 'role' },
+                          { label: 'Participation', col: 'participation', center: true, title: 'Max: 10' },
+                          { label: 'Asgn 1', col: 'a1', center: true, title: 'Max: 5' },
+                          { label: 'Asgn 2', col: 'a2', center: true, title: 'Max: 5' },
+                          { label: 'Asgn 3', col: 'a3', center: true, title: 'Max: 10' },
+                          { label: 'Midterm', col: 'midterm', center: true, title: 'Max: 30' },
+                          { label: 'Final', col: 'final', center: true, title: 'Max: 40' },
+                          { label: 'Absence Rate', col: 'absence', center: true, title: '(Approved absences / 14) × 100' },
+                        ].map(h => (
+                          <SortHead
+                            key={h.col}
+                            label={h.label}
+                            col={h.col}
+                            activeCol={studentSortCol}
+                            dir={studentSortDir}
+                            onSort={(c) => toggleSort(c, studentSortCol, setStudentSortCol, setStudentSortDir)}
+                            className={h.center ? 'text-center' : ''}
+                            title={h.title}
+                          />
+                        ))}
                         <TableHead className="font-semibold w-[80px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -2466,7 +2559,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                     
                     <div className="flex items-center gap-2 ml-4">
                       <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
-                      <Select value={gradingSort} onValueChange={(v) => setGradingSort(v as typeof gradingSort)}>
+                      <Select value={gradingSort} onValueChange={(v) => { setGradingSort(v as typeof gradingSort); setGradingSortCol(null); }}>
                         <SelectTrigger className="w-[120px] h-9">
                           <SelectValue placeholder="Sort by" />
                         </SelectTrigger>
@@ -2532,18 +2625,31 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="font-semibold text-center w-16">Index</TableHead>
-                      <TableHead className="font-semibold sticky left-0 bg-card z-10">Student</TableHead>
-                      <TableHead className="font-semibold text-center">ID</TableHead>
-                      <TableHead className="font-semibold text-center">Section</TableHead>
-                      <TableHead className="font-semibold text-center">Group</TableHead>
-                      <TableHead className="font-semibold text-center" title="Max: 10">Participation</TableHead>
-                      <TableHead className="font-semibold text-center" title="Max: 5">Asgn 1</TableHead>
-                      <TableHead className="font-semibold text-center" title="Max: 5">Asgn 2</TableHead>
-                      <TableHead className="font-semibold text-center" title="Max: 10">Asgn 3</TableHead>
-                      <TableHead className="font-semibold text-center" title="Max: 30">Midterm</TableHead>
-                      <TableHead className="font-semibold text-center" title="Max: 40">Final</TableHead>
-                      <TableHead className="font-semibold text-center">Total</TableHead>
+                      {[
+                        { label: 'Index', col: 'index', className: 'text-center w-16' },
+                        { label: 'Student', col: 'name', className: 'sticky left-0 bg-card z-10' },
+                        { label: 'ID', col: 'id', className: 'text-center' },
+                        { label: 'Section', col: 'section', className: 'text-center' },
+                        { label: 'Group', col: 'group', className: 'text-center' },
+                        { label: 'Participation', col: 'participation', className: 'text-center', title: 'Max: 10' },
+                        { label: 'Asgn 1', col: 'a1', className: 'text-center', title: 'Max: 5' },
+                        { label: 'Asgn 2', col: 'a2', className: 'text-center', title: 'Max: 5' },
+                        { label: 'Asgn 3', col: 'a3', className: 'text-center', title: 'Max: 10' },
+                        { label: 'Midterm', col: 'midterm', className: 'text-center', title: 'Max: 30' },
+                        { label: 'Final', col: 'final', className: 'text-center', title: 'Max: 40' },
+                        { label: 'Total', col: 'total', className: 'text-center' },
+                      ].map(h => (
+                        <SortHead
+                          key={h.col}
+                          label={h.label}
+                          col={h.col}
+                          activeCol={gradingSortCol}
+                          dir={gradingSortDir}
+                          onSort={(c) => toggleSort(c, gradingSortCol, setGradingSortCol, setGradingSortDir)}
+                          className={h.className}
+                          title={h.title}
+                        />
+                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2585,6 +2691,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                         return matchesSearch && matchesSection && matchesGroup && matchesMissingFilter(s.id, s.groupId || null);
                       })
                       .sort((a, b) => {
+                        if (gradingSortCol) return compareByColumn(a, b, gradingSortCol, gradingSortDir);
                         switch (gradingSort) {
                           case 'index':
                             return (a.indexNumber || 999) - (b.indexNumber || 999);
