@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Table, 
   TableBody, 
@@ -111,6 +112,7 @@ interface Assignment {
   uploaded_by: string;
   created_at: string;
   assignment_type: 'group' | 'individual';
+  teacher_comment: string | null;
 }
 
 interface Grade {
@@ -218,6 +220,31 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
 
   // Submission preview dialog state
   const [previewAssignment, setPreviewAssignment] = useState<Assignment | null>(null);
+  const [previewComment, setPreviewComment] = useState('');
+  const [savingComment, setSavingComment] = useState(false);
+
+  const openReview = (assignment: Assignment) => {
+    setPreviewAssignment(assignment);
+    setPreviewComment(assignment.teacher_comment || '');
+  };
+
+  const saveComment = async () => {
+    if (!previewAssignment) return;
+    setSavingComment(true);
+    const comment = previewComment.trim() || null;
+    const { error } = await supabase
+      .from('assignments')
+      .update({ teacher_comment: comment })
+      .eq('id', previewAssignment.id);
+    if (error) {
+      toast.error('Failed to save comment');
+    } else {
+      toast.success(comment ? 'Comment saved' : 'Comment removed');
+      setAssignments(prev => prev.map(a => a.id === previewAssignment.id ? { ...a, teacher_comment: comment } : a));
+      setPreviewAssignment(prev => (prev ? { ...prev, teacher_comment: comment } : prev));
+    }
+    setSavingComment(false);
+  };
 
   // Import dialog state
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -2583,12 +2610,15 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => setPreviewAssignment(assignment)}
-                                  title="Review & score"
+                                  onClick={() => openReview(assignment)}
+                                  title={assignment.teacher_comment ? `Review & score - has comment: ${assignment.teacher_comment.slice(0, 80)}` : 'Review & score'}
                                   className="gap-1"
                                 >
                                   <Eye className="w-4 h-4" />
                                   <span className="hidden lg:inline">Review</span>
+                                  {assignment.teacher_comment && (
+                                    <MessageSquare className="w-3 h-3 text-primary" />
+                                  )}
                                 </Button>
                                 <Button
                                   variant="ghost"
@@ -3270,6 +3300,27 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                       </Button>
                     </div>
                   )}
+                </div>
+
+                <div className="flex shrink-0 items-start gap-2 rounded-lg border bg-card p-3">
+                  <MessageSquare className="mt-2 h-4 w-4 shrink-0 text-primary" />
+                  <Textarea
+                    value={previewComment}
+                    onChange={(e) => setPreviewComment(e.target.value)}
+                    placeholder="Write a comment on this submission (only you see it)..."
+                    rows={2}
+                    className="min-h-0 flex-1 resize-none"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={saveComment}
+                    disabled={savingComment || (previewComment.trim() === (previewAssignment.teacher_comment || ''))}
+                    className="mt-1 gap-1.5 shrink-0"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    {savingComment ? 'Saving...' : 'Save Comment'}
+                  </Button>
                 </div>
 
                 <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
