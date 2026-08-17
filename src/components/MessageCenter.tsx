@@ -42,6 +42,19 @@ const getImageUrl = (imagePath: string) => {
   return data.publicUrl;
 };
 
+const TEACHER_EMAIL = 'nattadej_p@bu.ac.th';
+
+interface TeacherEmail {
+  id: string;
+  direction: string;
+  from_addr: string | null;
+  to_addr: string | null;
+  subject: string | null;
+  body: string | null;
+  student_id: string | null;
+  created_at: string;
+}
+
 interface MessageCenterProps {
   /** Start opened - used when the card is the sole content of a mobile tab. */
   defaultExpanded?: boolean;
@@ -56,12 +69,26 @@ export const MessageCenter = ({ defaultExpanded = false }: MessageCenterProps) =
   const [activeTab, setActiveTab] = useState('inbox');
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<TeacherMessage | null>(null);
+  const [teacherEmails, setTeacherEmails] = useState<TeacherEmail[]>([]);
+
+  const fetchTeacherEmails = async () => {
+    if (!currentStudent) return;
+    // Emails the teacher sent to this student, kept by the dashboard's compose.
+    const { data, error } = await supabase
+      .from('emails')
+      .select('*')
+      .eq('direction', 'out')
+      .eq('student_id', currentStudent.id)
+      .order('created_at', { ascending: false });
+    if (!error && data) setTeacherEmails(data as TeacherEmail[]);
+  };
 
   useEffect(() => {
     if (currentStudent) {
       fetchMessages();
-      
-      // Subscribe to real-time updates
+      fetchTeacherEmails();
+
+      // Subscribe to real-time updates for both channels
       const channel = supabase
         .channel('teacher-messages-student')
         .on(
@@ -73,6 +100,17 @@ export const MessageCenter = ({ defaultExpanded = false }: MessageCenterProps) =
           },
           () => {
             fetchMessages();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'emails'
+          },
+          () => {
+            fetchTeacherEmails();
           }
         )
         .subscribe();
@@ -241,6 +279,23 @@ export const MessageCenter = ({ defaultExpanded = false }: MessageCenterProps) =
 
   const unreadCount = inboxMessages.filter(m => !m.is_read).length;
 
+  // One inbox for both channels: chat threads and teacher emails, newest first.
+  type InboxItem =
+    | { kind: 'chat'; thread: { subject: string | null; messages: TeacherMessage[] }; date: number }
+    | { kind: 'email'; email: TeacherEmail; date: number };
+  const inboxItems: InboxItem[] = [
+    ...allThreads.map(thread => ({
+      kind: 'chat' as const,
+      thread,
+      date: new Date(thread.messages[thread.messages.length - 1].created_at).getTime(),
+    })),
+    ...teacherEmails.map(email => ({
+      kind: 'email' as const,
+      email,
+      date: new Date(email.created_at).getTime(),
+    })),
+  ].sort((a, b) => b.date - a.date);
+
   if (!currentStudent) return null;
 
   return (
@@ -292,17 +347,57 @@ export const MessageCenter = ({ defaultExpanded = false }: MessageCenterProps) =
 
             <TabsContent value="inbox" className="mt-4">
               <ScrollArea className="h-[55vh] sm:h-[225px] pr-2 sm:pr-4">
-                {allThreads.length === 0 ? (
+                {inboxItems.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <Mail className="w-8 h-8 mx-auto mb-2 opacity-50" />
                     <p>No messages yet</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {allThreads.map((thread, threadIndex) => {
+                    {inboxItems.map((item, itemIndex) => {
+                      if (item.kind === 'email') {
+                        const email = item.email;
+                        return (
+                          <div key={`email-${email.id}`} className="rounded-lg border border-accent/30 bg-accent/5">
+                            <div className="p-3">
+                              <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1 mb-1">
+                                <div className="flex items-center gap-2">
+                                  <Mail className="w-4 h-4 text-accent" />
+                                  <span className="font-medium text-sm">From Teacher</span>
+                                  <Badge className="border-0 bg-accent/20 text-accent text-[10px]">Email</Badge>
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {format(new Date(email.created_at), 'MMM d, h:mm a')}
+                                </span>
+                              </div>
+                              {email.subject && <p className="font-medium text-sm mb-1">{email.subject}</p>}
+                              <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">{email.body}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Sent to your email ({email.to_addr}) - check your inbox and reply there.
+                              </p>
+                            </div>
+                            <div className="px-3 pb-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="gap-1 h-10 md:h-7 text-xs"
+                                onClick={() => {
+                                  const subj = email.subject ? (email.subject.startsWith('Re:') ? email.subject : `Re: ${email.subject}`) : '';
+                                  window.open(`mailto:${TEACHER_EMAIL}?subject=${encodeURIComponent(subj)}`, '_blank');
+                                }}
+                              >
+                                <Reply className="w-3 h-3" />
+                                Reply by Email
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      }
+                      const thread = item.thread;
+                      const threadIndex = itemIndex;
                       const hasUnread = thread.messages.some(m => m.sender_type === 'teacher' && !m.is_read);
                       const latestMessage = thread.messages[thread.messages.length - 1];
-                      
+
                       return (
                         <div 
                           key={`thread-${threadIndex}`} 
@@ -347,11 +442,14 @@ export const MessageCenter = ({ defaultExpanded = false }: MessageCenterProps) =
                                       <Send className="w-4 h-4 text-primary" />
                                     )}
                                     <span className="font-medium text-sm">
-                                      {isFromTeacher 
+                                      {isFromTeacher
                                         ? (msg.message_type === 'announcement' ? 'Announcement' : 'From Teacher')
                                         : 'You'
                                       }
                                     </span>
+                                    {msgIndex === 0 && (
+                                      <Badge className="border-0 bg-primary/15 text-primary text-[10px]">Chat</Badge>
+                                    )}
                                     {msg.message_type === 'announcement' && msg.recipient_section && (
                                       <Badge variant="outline" className="text-xs">
                                         {msg.recipient_section}
