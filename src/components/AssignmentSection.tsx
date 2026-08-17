@@ -94,6 +94,15 @@ export const AssignmentSection = ({ groupId, defaultExpanded = false }: Assignme
 
   useEffect(() => {
     fetchAssignments();
+
+    // Group members see each other's uploads (and teacher deletions) live.
+    const channel = supabase
+      .channel(`assignments-live-${storageFolder}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assignments' }, () => fetchAssignments())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [storageFolder]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {

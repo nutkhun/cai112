@@ -99,7 +99,9 @@ import { toast } from 'sonner';
 // Keep this array stable to prevent re-subscribing / re-fetch loops.
 // Note: students/groups are refreshed via GroupContext realtime + refetchData().
 // Grades are intentionally excluded to avoid realtime bursts during bulk grading.
-const TEACHER_DASHBOARD_SYNC_TABLES: string[] = ['assignments', 'absence_requests'];
+// 'grades' is deliberately absent: the teacher is the only grade editor and a
+// self-triggered refresh mid-typing would clobber unsaved grading inputs.
+const TEACHER_DASHBOARD_SYNC_TABLES: string[] = ['assignments', 'absence_requests', 'assignment_due_dates', 'students', 'groups'];
 
 interface TeacherDashboardProps {
   onSwitchView: () => void;
@@ -333,12 +335,21 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
     }
   };
 
-  // Inbound mail is written by the email worker outside the app's own API, so
-  // realtime doesn't see it - poll for new unread email once a minute.
+  // Live unread-email count: the email worker announces inserts on the change
+  // feed; the interval is a safety net in case an announcement is missed.
   useEffect(() => {
     fetchUnreadEmails();
     const timer = setInterval(fetchUnreadEmails, 60000);
-    return () => clearInterval(timer);
+    const channel = supabase
+      .channel('email-unread-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'emails' }, () => {
+        fetchUnreadEmails();
+      })
+      .subscribe();
+    return () => {
+      clearInterval(timer);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Note: Initial data fetch is handled by useDataSync hook

@@ -106,6 +106,15 @@ export const TeacherMaterialsTab = () => {
   useEffect(() => {
     fetchMaterials();
     fetchAllDueDates();
+
+    const channel = supabase
+      .channel('teacher-materials-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'materials' }, () => fetchMaterials())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assignment_due_dates' }, () => fetchAllDueDates())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchAllDueDates = async () => {

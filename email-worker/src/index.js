@@ -35,10 +35,11 @@ export default {
       'SELECT id FROM students WHERE LOWER(email) = LOWER(?)'
     ).bind(sender).first();
 
+    const id = crypto.randomUUID();
     await env.DB.prepare(
       'INSERT INTO emails (id, direction, from_addr, to_addr, subject, body, student_id, is_read) VALUES (?, ?, ?, ?, ?, ?, ?, 0)'
     ).bind(
-      crypto.randomUUID(),
+      id,
       'in',
       sender,
       message.to || '',
@@ -46,5 +47,11 @@ export default {
       body.slice(0, 50000),
       student ? student.id : null
     ).run();
+
+    // Announce the insert on the app's change feed so open dashboards see the
+    // new email within seconds instead of waiting for a manual refresh.
+    await env.DB.prepare(
+      "INSERT INTO _changes (tbl, op, row_id) VALUES ('emails', 'INSERT', ?)"
+    ).bind(id).run();
   },
 };

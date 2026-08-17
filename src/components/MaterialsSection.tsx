@@ -43,10 +43,19 @@ export const MaterialsSection = () => {
   const [isOpen, setIsOpen] = useState(true);
 
   useEffect(() => {
-    if (currentStudent) {
-      fetchMaterials();
-      fetchDueDates();
-    }
+    if (!currentStudent) return;
+    fetchMaterials();
+    fetchDueDates();
+
+    // Teacher uploads and due-date changes appear without a manual refresh.
+    const channel = supabase
+      .channel('student-materials-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'materials' }, () => fetchMaterials())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assignment_due_dates' }, () => fetchDueDates())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [currentStudent]);
 
   const fetchDueDates = async () => {

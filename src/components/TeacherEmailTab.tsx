@@ -78,6 +78,18 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
 
   useEffect(() => {
     fetchAll();
+
+    // Live updates: refetch whenever an email row changes (new inbound mail
+    // is announced on the change feed by the email worker).
+    const channel = supabase
+      .channel('email-tab-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'emails' }, () => {
+        fetchAll();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
