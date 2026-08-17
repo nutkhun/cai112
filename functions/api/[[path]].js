@@ -6,7 +6,7 @@
 //   GET    /api/storage/<bucket>/<key>   read a file from R2
 //   DELETE /api/storage/<bucket>/<key>   delete a file from R2
 
-const TABLES = { students: 1, groups: 1, group_invitations: 1, join_requests: 1, group_messages: 1, group_notes: 1, student_notes: 1, assignments: 1, assignment_due_dates: 1, grades: 1, rubric_scores: 1, materials: 1, absence_requests: 1, teacher_messages: 1 };
+const TABLES = { students: 1, groups: 1, group_invitations: 1, join_requests: 1, group_messages: 1, group_notes: 1, student_notes: 1, assignments: 1, assignment_due_dates: 1, grades: 1, rubric_scores: 1, materials: 1, absence_requests: 1, teacher_messages: 1, emails: 1 };
 
 const HAS_UPDATED_AT = { group_invitations: 1, join_requests: 1, group_notes: 1, student_notes: 1, assignment_due_dates: 1, grades: 1, rubric_scores: 1, materials: 1, absence_requests: 1 };
 

@@ -1,0 +1,8 @@
+name = "cai112-email"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sms-cai112"
+database_id = "46691265-9759-424b-9eab-4ea1f61f3c45"

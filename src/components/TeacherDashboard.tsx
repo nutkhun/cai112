@@ -58,7 +58,8 @@ import {
   ChevronUp,
   ChevronDown,
   Eye,
-  Link2
+  Link2,
+  Mail
 } from 'lucide-react';
 import {
   Dialog,
@@ -84,6 +85,7 @@ import {
 import { supabase } from '@/integrations/backend/client';
 import { AbsenceRequestsTab } from './AbsenceRequestsTab';
 import { TeacherMessagesTab } from './TeacherMessagesTab';
+import { TeacherEmailTab } from './TeacherEmailTab';
 import { TeacherMaterialsTab } from './TeacherMaterialsTab';
 import { TeacherChatMonitorTab } from './TeacherChatMonitorTab';
 import { TeacherDueDatesTab } from './TeacherDueDatesTab';
@@ -1894,14 +1896,14 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                       variant="ghost" 
                       size="sm" 
                       className={`relative gap-1.5 transition-all duration-200 hover:bg-muted active:scale-95 ${
-                        (activeTab === 'messages' || activeTab === 'chat') 
-                          ? 'text-primary font-medium' 
+                        (activeTab === 'messages' || activeTab === 'chat' || activeTab === 'email')
+                          ? 'text-primary font-medium'
                           : 'text-muted-foreground'
                       }`}
                     >
                       <MessageSquare className="w-4 h-4" />
                       <span className="hidden sm:inline">Comms</span>
-                      {(activeTab === 'messages' || activeTab === 'chat') && (
+                      {(activeTab === 'messages' || activeTab === 'chat' || activeTab === 'email') && (
                         <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                       )}
                       {unreadMessageCount > 0 && (
@@ -1921,7 +1923,15 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                       )}
                       {activeTab === 'messages' && unreadMessageCount === 0 && <Check className="w-4 h-4 ml-auto" />}
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
+                      onClick={() => setActiveTab('email')}
+                      className={`gap-2 ${activeTab === 'email' ? 'bg-primary/10 text-primary font-medium' : ''}`}
+                    >
+                      <Mail className="w-4 h-4" />
+                      Email
+                      {activeTab === 'email' && <Check className="w-4 h-4 ml-auto" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                       onClick={() => setActiveTab('chat')}
                       className={`gap-2 ${activeTab === 'chat' ? 'bg-primary/10 text-primary font-medium' : ''}`}
                     >
@@ -2020,6 +2030,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
           {activeTab === 'materials' && 'Briefs & Materials'}
           {activeTab === 'duedates' && 'Due Dates'}
           {activeTab === 'messages' && 'Messages'}
+          {activeTab === 'email' && 'Email'}
           {activeTab === 'chat' && 'Chat Monitor'}
         </h2>
 
@@ -3116,6 +3127,10 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
           {/* Messages Tab */}
           <TabsContent value="messages" className="animate-fade-in">
             <TeacherMessagesTab />
+          </TabsContent>
+
+          <TabsContent value="email" className="animate-fade-in">
+            <TeacherEmailTab />
           </TabsContent>
 
           {/* Chat Monitor Tab */}
