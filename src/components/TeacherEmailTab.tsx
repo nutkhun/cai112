@@ -62,6 +62,8 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
   const [composeTo, setComposeTo] = useState('');
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
+  const [composeSearch, setComposeSearch] = useState('');
+  const [composeSection, setComposeSection] = useState('all');
 
   const fetchAll = async () => {
     setLoading(true);
@@ -101,8 +103,18 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
     setComposeTo(student?.email || replyTo?.from_addr || '');
     setComposeSubject(replyTo?.subject ? (replyTo.subject.startsWith('Re:') ? replyTo.subject : `Re: ${replyTo.subject}`) : '');
     setComposeBody('');
+    setComposeSearch('');
+    setComposeSection('all');
     setComposeOpen(true);
   };
+
+  const composeCandidates = students.filter(s => {
+    if (!s.email) return false;
+    if (composeSection !== 'all' && s.section !== composeSection) return false;
+    const q = composeSearch.trim().toLowerCase();
+    if (!q) return true;
+    return s.name.toLowerCase().includes(q) || s.student_id.includes(q) || (s.email || '').toLowerCase().includes(q);
+  });
 
   const handleSend = async () => {
     const to = composeTo.trim();
@@ -257,25 +269,48 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Student</Label>
-              <Select
-                value={composeStudentId}
-                onValueChange={(id) => {
-                  setComposeStudentId(id);
-                  const s = students.find(st => st.id === id);
-                  if (s?.email) setComposeTo(s.email);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pick a student (fills their email)" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  {students.filter(s => s.email).map(s => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name} · {s.section}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Input
+                  value={composeSearch}
+                  onChange={(e) => setComposeSearch(e.target.value)}
+                  placeholder="Search name, ID, or email..."
+                  className="flex-1"
+                />
+                <Select value={composeSection} onValueChange={setComposeSection}>
+                  <SelectTrigger className="w-[130px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sections</SelectItem>
+                    <SelectItem value="457A">457A</SelectItem>
+                    <SelectItem value="458A">458A</SelectItem>
+                    <SelectItem value="458B">458B</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="max-h-44 overflow-y-auto rounded-lg border">
+                {composeCandidates.length === 0 ? (
+                  <p className="p-3 text-center text-sm text-muted-foreground">No students match</p>
+                ) : (
+                  composeCandidates.map(s => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => { setComposeStudentId(s.id); setComposeTo(s.email!); }}
+                      className={`flex w-full items-center justify-between gap-2 border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted/50 ${
+                        composeStudentId === s.id ? 'bg-primary/10' : ''
+                      }`}
+                    >
+                      <span className="min-w-0 truncate font-medium">{s.name}</span>
+                      <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant="secondary" className="text-[10px]">{s.section}</Badge>
+                        {s.email}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">{composeCandidates.length} student{composeCandidates.length === 1 ? '' : 's'} shown · click one to fill the To field</p>
             </div>
             <div className="space-y-2">
               <Label>To</Label>
