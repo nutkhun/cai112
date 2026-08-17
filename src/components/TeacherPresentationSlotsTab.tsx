@@ -262,12 +262,26 @@ export const TeacherPresentationSlotsTab = () => {
                 </Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-5">
               {typeSlots.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">No slots yet - add some above</p>
               ) : (
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {typeSlots.map(slot => {
+                [...SECTIONS, null].map(sec => {
+                  const sectionSlots = typeSlots.filter(s => (sec === null ? !s.section : s.section === sec));
+                  if (sectionSlots.length === 0) return null;
+                  return (
+                    <div key={sec ?? 'all'}>
+                      <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        <Badge variant="secondary" className="text-xs">{sec ?? 'All Sections'}</Badge>
+                        {sec && SECTION_WINDOWS[sec] && (
+                          <span>{SECTION_WINDOWS[sec].start}-{SECTION_WINDOWS[sec].end}</span>
+                        )}
+                        <span className="normal-case">
+                          {sectionSlots.filter(s => s.booked_group_id).length}/{sectionSlots.length} booked
+                        </span>
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {sectionSlots.map(slot => {
                     const group = slot.booked_group_id ? getGroupById(slot.booked_group_id) : null;
                     return (
                       <div
@@ -305,7 +319,10 @@ export const TeacherPresentationSlotsTab = () => {
                       </div>
                     );
                   })}
-                </div>
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </CardContent>
           </Card>
