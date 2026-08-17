@@ -237,7 +237,7 @@ export const StudentDashboard = () => {
           <div className="space-y-4 animate-fade-in">
             <DueDateNotifications />
             <GroupCard group={currentGroup} />
-            <PresentationQueue groupId={currentGroup.id} membersCount={currentGroup.members.length} />
+            <PresentationQueue groupId={currentGroup.id} />
             {manageGroupPanel}
           </div>
         ) : (
@@ -245,6 +245,7 @@ export const StudentDashboard = () => {
             <DueDateNotifications />
             <AvailableStudentsList onGroupCreated={handleGroupCreated} />
             {joinGroupPanel}
+            <PresentationQueue groupId={null} />
             <PendingInvitationsPanel />
           </div>
         );
@@ -330,14 +331,14 @@ export const StudentDashboard = () => {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="w-full space-y-4 overflow-hidden">
               <GroupCard group={currentGroup} />
-              <PresentationQueue groupId={currentGroup.id} membersCount={currentGroup.members.length} />
               <AssignmentSection groupId={currentGroup.id} />
+              <AbsenceForm />
             </div>
             <div className="space-y-4">
+              <PresentationQueue groupId={currentGroup.id} />
               <MessageCenter />
               <MaterialsSection />
               {manageGroupPanel}
-              <AbsenceForm />
             </div>
           </div>
         </section>) : (/* Student has no group - show available classmates and groups to join */

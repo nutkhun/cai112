@@ -127,6 +127,18 @@ export const AvailableStudentsList = ({ onGroupCreated }: AvailableStudentsListP
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search classmates..." className="pl-10 h-10" />
           </div>
 
+          {selectedMembers.length === 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2 border-dashed"
+              onClick={() => setShowNameDialog(true)}
+            >
+              <UserCheck className="w-4 h-4" />
+              Present alone? Create a group of one (just you)
+            </Button>
+          )}
+
           {filteredStudents.length === 0 ? <div className="text-center py-8 text-muted-foreground">
               <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
               <p className="text-sm">

@@ -25,9 +25,10 @@ const EXAM_TYPES = ['Midterm Presentation', 'Final Project'];
  * Clicking a free slot books it for the whole group and releases any slot the
  * group held for the same exam; clicking their own slot releases it.
  */
-export const PresentationQueue = ({ groupId, membersCount }: { groupId: string; membersCount: number }) => {
+export const PresentationQueue = ({ groupId }: { groupId: string | null }) => {
   const { currentStudent } = useGroups();
-  const bookingLocked = membersCount < 4;
+  // Any group (1-4 members) can book; students without a group only look.
+  const bookingLocked = !groupId;
   const [slots, setSlots] = useState<Slot[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -56,7 +57,7 @@ export const PresentationQueue = ({ groupId, membersCount }: { groupId: string; 
   );
 
   const book = async (slot: Slot) => {
-    if (busy) return;
+    if (busy || !groupId) return;
     setBusy(true);
     try {
       if (slot.booked_group_id === groupId) {
@@ -104,12 +105,12 @@ export const PresentationQueue = ({ groupId, membersCount }: { groupId: string; 
       <CardContent className="space-y-4 pt-0">
         {bookingLocked && (
           <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-            Booking unlocks when your group has 4 members ({membersCount}/4 now). You can already see which slots are open.
+            Create or join a group to book a slot - even a group of one. You can already see which slots are open.
           </p>
         )}
         {EXAM_TYPES.map(type => {
           const typeSlots = visibleSlots.filter(s => s.exam_type === type);
-          const mySlot = typeSlots.find(s => s.booked_group_id === groupId);
+          const mySlot = groupId ? typeSlots.find(s => s.booked_group_id === groupId) : undefined;
           return (
             <div key={type}>
               <p className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -127,7 +128,7 @@ export const PresentationQueue = ({ groupId, membersCount }: { groupId: string; 
               ) : (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {typeSlots.map(slot => {
-                    const mine = slot.booked_group_id === groupId;
+                    const mine = !!groupId && slot.booked_group_id === groupId;
                     const taken = !!slot.booked_group_id && !mine;
                     return (
                       <button
@@ -135,7 +136,7 @@ export const PresentationQueue = ({ groupId, membersCount }: { groupId: string; 
                         type="button"
                         disabled={taken || busy || (bookingLocked && !mine)}
                         onClick={() => book(slot)}
-                        title={mine ? 'Tap to release your booking' : taken ? 'Unavailable' : bookingLocked ? 'Your group needs 4 members to book' : 'Tap to book for your group'}
+                        title={mine ? 'Tap to release your booking' : taken ? 'Unavailable' : bookingLocked ? 'Join or create a group to book' : 'Tap to book for your group'}
                         className={`rounded-lg border p-2 text-left text-xs transition-colors ${
                           mine
                             ? 'border-success bg-success/10'
