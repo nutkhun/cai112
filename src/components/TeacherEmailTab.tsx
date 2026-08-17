@@ -45,7 +45,12 @@ interface StudentLite {
   email: string | null;
 }
 
-export const TeacherEmailTab = () => {
+interface TeacherEmailTabProps {
+  /** Reports the number of unread inbound emails so the header dot can clear. */
+  onUnreadCountChange?: (count: number) => void;
+}
+
+export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) => {
   const [emails, setEmails] = useState<EmailRow[]>([]);
   const [students, setStudents] = useState<StudentLite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,6 +77,10 @@ export const TeacherEmailTab = () => {
   useEffect(() => {
     fetchAll();
   }, []);
+
+  useEffect(() => {
+    onUnreadCountChange?.(emails.filter(e => e.direction === 'in' && !e.is_read).length);
+  }, [emails, onUnreadCountChange]);
 
   const studentFor = (row: EmailRow) => {
     if (row.student_id) return students.find(s => s.id === row.student_id);

@@ -263,6 +263,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
 
   // Unread messages from students
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [unreadEmailCount, setUnreadEmailCount] = useState(0);
 
   // Rubric scoring dialog state
   const [rubricDialogOpen, setRubricDialogOpen] = useState(false);
@@ -319,6 +320,26 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
       setUnreadMessageCount(count);
     }
   };
+
+  const fetchUnreadEmails = async () => {
+    const { count, error } = await supabase
+      .from('emails')
+      .select('*', { count: 'exact', head: true })
+      .eq('direction', 'in')
+      .eq('is_read', 0);
+
+    if (!error && count !== null) {
+      setUnreadEmailCount(count);
+    }
+  };
+
+  // Inbound mail is written by the email worker outside the app's own API, so
+  // realtime doesn't see it - poll for new unread email once a minute.
+  useEffect(() => {
+    fetchUnreadEmails();
+    const timer = setInterval(fetchUnreadEmails, 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Note: Initial data fetch is handled by useDataSync hook
   // Real-time subscriptions are also handled by useDataSync for students, groups, assignments
@@ -1906,7 +1927,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                       {(activeTab === 'messages' || activeTab === 'chat' || activeTab === 'email') && (
                         <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                       )}
-                      {unreadMessageCount > 0 && (
+                      {(unreadMessageCount > 0 || unreadEmailCount > 0) && (
                         <span className="absolute -top-1 -right-1 w-2 h-2 bg-destructive rounded-full animate-pulse" />
                       )}
                     </Button>
@@ -1929,7 +1950,10 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                     >
                       <Mail className="w-4 h-4" />
                       Email
-                      {activeTab === 'email' && <Check className="w-4 h-4 ml-auto" />}
+                      {unreadEmailCount > 0 && (
+                        <Badge variant="destructive" className="ml-auto text-[10px] px-1.5 py-0">{unreadEmailCount}</Badge>
+                      )}
+                      {activeTab === 'email' && unreadEmailCount === 0 && <Check className="w-4 h-4 ml-auto" />}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => setActiveTab('chat')}
@@ -3130,7 +3154,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
           </TabsContent>
 
           <TabsContent value="email" className="animate-fade-in">
-            <TeacherEmailTab />
+            <TeacherEmailTab onUnreadCountChange={setUnreadEmailCount} />
           </TabsContent>
 
           {/* Chat Monitor Tab */}
