@@ -324,10 +324,6 @@ export const StudentDashboard = () => {
 
       {currentGroup ? (/* Student is in a group - show only their group */
       <section className="animate-fade-in">
-          <div className="flex items-center gap-2 mb-4">
-            <h2 className="text-xl font-display font-semibold">Your Group</h2>
-            <Badge variant="default">Active</Badge>
-          </div>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="w-full space-y-4 overflow-hidden">
               <GroupCard group={currentGroup} />
