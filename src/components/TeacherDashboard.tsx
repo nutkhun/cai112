@@ -59,7 +59,8 @@ import {
   ChevronDown,
   Eye,
   Link2,
-  Mail
+  Mail,
+  CalendarClock
 } from 'lucide-react';
 import {
   Dialog,
@@ -87,6 +88,7 @@ import { AbsenceRequestsTab } from './AbsenceRequestsTab';
 import { TeacherMessagesTab } from './TeacherMessagesTab';
 import { TeacherEmailTab } from './TeacherEmailTab';
 import { TeacherAttendanceTab } from './TeacherAttendanceTab';
+import { TeacherPresentationSlotsTab } from './TeacherPresentationSlotsTab';
 import { TeacherMaterialsTab } from './TeacherMaterialsTab';
 import { TeacherChatMonitorTab } from './TeacherChatMonitorTab';
 import { TeacherDueDatesTab } from './TeacherDueDatesTab';
@@ -1898,14 +1900,14 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                       variant="ghost" 
                       size="sm" 
                       className={`gap-1.5 transition-all duration-200 hover:bg-muted active:scale-95 ${
-                        (activeTab === 'assignments' || activeTab === 'grading' || activeTab === 'materials' || activeTab === 'duedates') 
+                        (activeTab === 'assignments' || activeTab === 'grading' || activeTab === 'materials' || activeTab === 'duedates' || activeTab === 'slots') 
                           ? 'text-primary font-medium' 
                           : 'text-muted-foreground'
                       }`}
                     >
                       <ClipboardCheck className="w-4 h-4" />
                       <span className="hidden sm:inline">Academics</span>
-                      {(activeTab === 'assignments' || activeTab === 'grading' || activeTab === 'materials' || activeTab === 'duedates') && (
+                      {(activeTab === 'assignments' || activeTab === 'grading' || activeTab === 'materials' || activeTab === 'duedates' || activeTab === 'slots') && (
                         <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                       )}
                     </Button>
@@ -1929,6 +1931,14 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                       <Calendar className="w-4 h-4" />
                       Due Dates
                       {activeTab === 'duedates' && <Check className="w-4 h-4 ml-auto" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setActiveTab('slots')}
+                      className={`gap-2 ${activeTab === 'slots' ? 'bg-primary/10 text-primary font-medium' : ''}`}
+                    >
+                      <CalendarClock className="w-4 h-4" />
+                      Presentation Slots
+                      {activeTab === 'slots' && <Check className="w-4 h-4 ml-auto" />}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuLabel className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -2093,6 +2103,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
           {activeTab === 'grading' && 'Grading'}
           {activeTab === 'materials' && 'Briefs & Materials'}
           {activeTab === 'duedates' && 'Due Dates'}
+          {activeTab === 'slots' && 'Presentation Slots'}
           {activeTab === 'messages' && 'Messages'}
           {activeTab === 'email' && 'Email'}
           {activeTab === 'chat' && 'Chat Monitor'}
@@ -3210,6 +3221,11 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
           {/* Attendance Tab */}
           <TabsContent value="attendance" className="animate-fade-in">
             <TeacherAttendanceTab />
+          </TabsContent>
+
+          {/* Presentation Slots Tab */}
+          <TabsContent value="slots" className="animate-fade-in">
+            <TeacherPresentationSlotsTab />
           </TabsContent>
 
           {/* Messages Tab */}

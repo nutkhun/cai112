@@ -13,6 +13,7 @@ import { MessageCenter } from './MessageCenter';
 import { MaterialsSection } from './MaterialsSection';
 import { DueDateNotifications } from './DueDateNotifications';
 import { StudentMobileNav, MobileNavItem } from './student/StudentMobileNav';
+import { PresentationQueue } from './PresentationQueue';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -236,6 +237,7 @@ export const StudentDashboard = () => {
           <div className="space-y-4 animate-fade-in">
             <DueDateNotifications />
             <GroupCard group={currentGroup} />
+            {currentGroup.members.length >= 4 && <PresentationQueue groupId={currentGroup.id} />}
             {manageGroupPanel}
           </div>
         ) : (
@@ -328,6 +330,7 @@ export const StudentDashboard = () => {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="w-full space-y-4 overflow-hidden">
               <GroupCard group={currentGroup} />
+              {currentGroup.members.length >= 4 && <PresentationQueue groupId={currentGroup.id} />}
               <AssignmentSection groupId={currentGroup.id} />
             </div>
             <div className="space-y-4">
