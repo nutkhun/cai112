@@ -237,7 +237,7 @@ export const StudentDashboard = () => {
           <div className="space-y-4 animate-fade-in">
             <DueDateNotifications />
             <GroupCard group={currentGroup} />
-            {currentGroup.members.length >= 4 && <PresentationQueue groupId={currentGroup.id} />}
+            <PresentationQueue groupId={currentGroup.id} membersCount={currentGroup.members.length} />
             {manageGroupPanel}
           </div>
         ) : (
@@ -330,7 +330,7 @@ export const StudentDashboard = () => {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="w-full space-y-4 overflow-hidden">
               <GroupCard group={currentGroup} />
-              {currentGroup.members.length >= 4 && <PresentationQueue groupId={currentGroup.id} />}
+              <PresentationQueue groupId={currentGroup.id} membersCount={currentGroup.members.length} />
               <AssignmentSection groupId={currentGroup.id} />
             </div>
             <div className="space-y-4">

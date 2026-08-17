@@ -25,8 +25,9 @@ const EXAM_TYPES = ['Midterm Presentation', 'Final Project'];
  * Clicking a free slot books it for the whole group and releases any slot the
  * group held for the same exam; clicking their own slot releases it.
  */
-export const PresentationQueue = ({ groupId }: { groupId: string }) => {
+export const PresentationQueue = ({ groupId, membersCount }: { groupId: string; membersCount: number }) => {
   const { currentStudent } = useGroups();
+  const bookingLocked = membersCount < 4;
   const [slots, setSlots] = useState<Slot[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -101,6 +102,11 @@ export const PresentationQueue = ({ groupId }: { groupId: string }) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 pt-0">
+        {bookingLocked && (
+          <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+            Booking unlocks when your group has 4 members ({membersCount}/4 now). You can already see which slots are open.
+          </p>
+        )}
         {EXAM_TYPES.map(type => {
           const typeSlots = visibleSlots.filter(s => s.exam_type === type);
           const mySlot = typeSlots.find(s => s.booked_group_id === groupId);
@@ -127,9 +133,9 @@ export const PresentationQueue = ({ groupId }: { groupId: string }) => {
                       <button
                         key={slot.id}
                         type="button"
-                        disabled={taken || busy}
+                        disabled={taken || busy || (bookingLocked && !mine)}
                         onClick={() => book(slot)}
-                        title={mine ? 'Tap to release your booking' : taken ? 'Unavailable' : 'Tap to book for your group'}
+                        title={mine ? 'Tap to release your booking' : taken ? 'Unavailable' : bookingLocked ? 'Your group needs 4 members to book' : 'Tap to book for your group'}
                         className={`rounded-lg border p-2 text-left text-xs transition-colors ${
                           mine
                             ? 'border-success bg-success/10'
