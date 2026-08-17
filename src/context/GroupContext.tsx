@@ -29,7 +29,15 @@ const GroupContext = createContext<GroupContextType | undefined>(undefined);
 export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
+  const [currentStudent, setCurrentStudentState] = useState<Student | null>(null);
+
+  // The session survives reloads and closed tabs until the student logs out.
+  const SESSION_KEY = 'cai112-session-student-id';
+  const setCurrentStudent = useCallback((student: Student | null) => {
+    setCurrentStudentState(student);
+    if (student) localStorage.setItem(SESSION_KEY, student.id);
+    else localStorage.removeItem(SESSION_KEY);
+  }, []);
   const [loading, setLoading] = useState(true);
 
   // Fetch all data
@@ -96,7 +104,18 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setCurrentStudent(updated);
       }
     }
-  }, [students, currentStudent]);
+  }, [students, currentStudent, setCurrentStudent]);
+
+  // Restore a saved session once the roster has loaded. If the stored student
+  // no longer exists (removed by the teacher), drop the stale session.
+  useEffect(() => {
+    if (loading || currentStudent) return;
+    const savedId = localStorage.getItem(SESSION_KEY);
+    if (!savedId) return;
+    const saved = students.find(s => s.id === savedId);
+    if (saved) setCurrentStudentState(saved);
+    else if (students.length > 0) localStorage.removeItem(SESSION_KEY);
+  }, [loading, students, currentStudent]);
 
   const addStudent = useCallback(async (name: string, studentId: string, section: Section, pin: string): Promise<{ student: Student; requiresPinChange: boolean } | { error: string } | null> => {
     // Validate PIN format
