@@ -334,9 +334,9 @@ export const StudentDashboard = () => {
               <AbsenceForm />
             </div>
             <div className="space-y-4">
-              <PresentationQueue groupId={currentGroup.id} />
               <MessageCenter />
               <MaterialsSection />
+              <PresentationQueue groupId={currentGroup.id} />
             </div>
           </div>
         </section>) : (/* Student has no group - show available classmates and groups to join */
