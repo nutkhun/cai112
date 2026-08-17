@@ -11,9 +11,11 @@ import { toast } from 'sonner';
 interface GroupCardProps {
   group: Group;
   showActions?: boolean;
+  /** Extra content (invites, join requests) rendered inside the card for members. */
+  manageSlot?: React.ReactNode;
 }
 
-export const GroupCard = ({ group, showActions = true }: GroupCardProps) => {
+export const GroupCard = ({ group, showActions = true, manageSlot }: GroupCardProps) => {
   const { currentStudent, leaveGroup, requestToJoinGroup, hasPendingRequest, setGroupLeader } = useGroups();
   const [pendingRequest, setPendingRequest] = useState(false);
   const [checkingRequest, setCheckingRequest] = useState(false);
@@ -119,6 +121,8 @@ export const GroupCard = ({ group, showActions = true }: GroupCardProps) => {
             Member details are hidden until you join this group.
           </p>
         )}
+
+        {isInGroup && manageSlot}
 
         {showActions && (
           isInGroup ? (

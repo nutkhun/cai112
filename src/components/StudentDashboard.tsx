@@ -22,6 +22,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import {
   LogOut,
   Users,
+  UserPlus,
   ChevronDown,
   ChevronUp,
   MessageCircle,
@@ -149,36 +150,39 @@ export const StudentDashboard = () => {
 
   if (!currentStudent) return null;
 
-  const manageGroupPanel = currentGroup && currentGroup.members.length < 4 && (
+  // Inviting classmates and approving requests live inside the group card -
+  // one module for everything about who is in the group.
+  const manageSlot = currentGroup && currentGroup.members.length < 4 ? (
     <Collapsible open={manageGroupOpen} onOpenChange={setManageGroupOpen}>
-      <Card className="shadow-soft border-0">
+      <div className="rounded-lg border bg-muted/20">
         <CollapsibleTrigger asChild>
-          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-3">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2 font-display font-semibold text-base sm:text-lg">
-                <Users className="w-5 h-5 text-primary shrink-0" />
-                Manage Your Group
-              </CardTitle>
-              {manageGroupOpen ? (
-                <ChevronUp className="w-5 h-5 text-muted-foreground shrink-0" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-muted-foreground shrink-0" />
-              )}
-            </div>
-          </CardHeader>
+          <button
+            type="button"
+            className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted/40"
+          >
+            <span className="flex items-center gap-2">
+              <UserPlus className="h-4 w-4 text-primary" />
+              Add members · invite classmates & approve requests
+            </span>
+            {manageGroupOpen ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <CardContent className="pt-0 space-y-4">
+          <div className="space-y-4 px-3 pb-3 pt-1">
             <InviteStudentsList
               groupId={currentGroup.id}
               currentMemberCount={currentGroup.members.length}
             />
             <JoinRequestsPanel groupId={currentGroup.id} />
-          </CardContent>
+          </div>
         </CollapsibleContent>
-      </Card>
+      </div>
     </Collapsible>
-  );
+  ) : null;
 
   const joinGroupPanel = (
     <Collapsible open={joinGroupOpen} onOpenChange={setJoinGroupOpen}>
@@ -236,9 +240,8 @@ export const StudentDashboard = () => {
         return currentGroup ? (
           <div className="space-y-4 animate-fade-in">
             <DueDateNotifications />
-            <GroupCard group={currentGroup} />
+            <GroupCard group={currentGroup} manageSlot={manageSlot} />
             <PresentationQueue groupId={currentGroup.id} />
-            {manageGroupPanel}
           </div>
         ) : (
           <div className="space-y-4 animate-fade-in">
@@ -326,7 +329,7 @@ export const StudentDashboard = () => {
       <section className="animate-fade-in">
           <div className="grid md:grid-cols-2 gap-4">
             <div className="w-full space-y-4 overflow-hidden">
-              <GroupCard group={currentGroup} />
+              <GroupCard group={currentGroup} manageSlot={manageSlot} />
               <AssignmentSection groupId={currentGroup.id} />
               <AbsenceForm />
             </div>
@@ -334,7 +337,6 @@ export const StudentDashboard = () => {
               <PresentationQueue groupId={currentGroup.id} />
               <MessageCenter />
               <MaterialsSection />
-              {manageGroupPanel}
             </div>
           </div>
         </section>) : (/* Student has no group - show available classmates and groups to join */
