@@ -76,11 +76,14 @@ export const GroupCard = ({ group, showActions = true }: GroupCardProps) => {
       <CardContent className="p-4 sm:p-5 space-y-4">
         <div className="flex items-start justify-between">
           {/* Wraps rather than overflowing when the group name is long. */}
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Group name</p>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
             <h3 className="text-lg sm:text-xl font-semibold break-words">{group.name}</h3>
             <Badge variant={isFull ? "secondary" : "default"} className="text-xs shrink-0">
               {group.members.length}/4 members
             </Badge>
+            </div>
           </div>
         </div>
 
