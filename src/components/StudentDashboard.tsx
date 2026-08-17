@@ -29,7 +29,7 @@ import {
   ClipboardList,
   Mail,
   CalendarX,
-  User,
+  CalendarClock,
 } from 'lucide-react';
 import { Student } from '@/types';
 import { supabase } from '@/integrations/backend/client';
@@ -37,7 +37,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useUnreadTeacherMessages } from '@/hooks/useUnreadTeacherMessages';
 import { cn } from '@/lib/utils';
 
-type StudentTab = 'group' | 'chat' | 'work' | 'inbox' | 'absence' | 'profile';
+type StudentTab = 'group' | 'chat' | 'work' | 'inbox' | 'absence' | 'slots';
 
 export const StudentDashboard = () => {
   const [leaderDialogOpen, setLeaderDialogOpen] = useState(false);
@@ -137,7 +137,7 @@ export const StudentDashboard = () => {
     { id: 'work' as const, label: 'Assignment', icon: ClipboardList },
     { id: 'inbox' as const, label: 'Inbox', icon: Mail, badge: unreadCount },
     { id: 'absence' as const, label: 'Absence', icon: CalendarX },
-    { id: 'profile' as const, label: 'Profile', icon: User },
+    { id: 'slots' as const, label: 'Slots', icon: CalendarClock },
   ];
 
   // If the student leaves a group while sitting on the Chat tab, fall back home.
@@ -183,6 +183,37 @@ export const StudentDashboard = () => {
       </div>
     </Collapsible>
   ) : null;
+
+  // Identity + logout, shown at the bottom of the mobile Group tab now that
+  // the dedicated Profile tab is gone. Hidden on desktop (header covers it).
+  const profilePanel = (
+    <div className="space-y-4 md:hidden">
+      <Card className="shadow-soft border-0">
+        <CardContent className="flex items-center gap-3 p-4">
+          <Avatar className="h-12 w-12">
+            <AvatarFallback className="bg-primary/15 text-primary font-semibold">
+              {getInitials(currentStudent.name)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold truncate">{currentStudent.name}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <Badge variant="secondary" className="text-xs text-primary">
+                {currentStudent.studentId}
+              </Badge>
+              <Badge variant="secondary" className="text-xs">
+                {currentStudent.section}
+              </Badge>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={handleLogout}>
+            <LogOut className="w-4 h-4" />
+            Log out
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
 
   const joinGroupPanel = (
     <Collapsible open={joinGroupOpen} onOpenChange={setJoinGroupOpen}>
@@ -241,15 +272,15 @@ export const StudentDashboard = () => {
           <div className="space-y-4 animate-fade-in">
             <DueDateNotifications />
             <GroupCard group={currentGroup} manageSlot={manageSlot} />
-            <PresentationQueue groupId={currentGroup.id} />
+            {profilePanel}
           </div>
         ) : (
           <div className="space-y-4 animate-fade-in">
             <DueDateNotifications />
             <AvailableStudentsList onGroupCreated={handleGroupCreated} />
             {joinGroupPanel}
-            <PresentationQueue groupId={null} />
             <PendingInvitationsPanel />
+            {profilePanel}
           </div>
         );
 
@@ -282,36 +313,10 @@ export const StudentDashboard = () => {
           </div>
         );
 
-      case 'profile':
+      case 'slots':
         return (
           <div className="space-y-4 animate-fade-in">
-            <Card className="shadow-soft border-0">
-              <CardContent className="flex items-center gap-3 p-4">
-                <Avatar className="h-12 w-12">
-                  <AvatarFallback className="bg-primary/15 text-primary font-semibold">
-                    {getInitials(currentStudent.name)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold truncate">{currentStudent.name}</p>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                    <Badge variant="secondary" className="text-xs text-primary">
-                      {currentStudent.studentId}
-                    </Badge>
-                    <Badge variant="secondary" className="text-xs">
-                      {currentStudent.section}
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {!currentGroup && <PendingInvitationsPanel />}
-
-            <Button variant="outline" className="w-full gap-2" onClick={handleLogout}>
-              <LogOut className="w-4 h-4" />
-              Log out
-            </Button>
+            <PresentationQueue groupId={currentGroup?.id || null} />
           </div>
         );
 
