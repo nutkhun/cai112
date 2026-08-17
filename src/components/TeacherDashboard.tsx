@@ -86,6 +86,7 @@ import { supabase } from '@/integrations/backend/client';
 import { AbsenceRequestsTab } from './AbsenceRequestsTab';
 import { TeacherMessagesTab } from './TeacherMessagesTab';
 import { TeacherEmailTab } from './TeacherEmailTab';
+import { TeacherAttendanceTab } from './TeacherAttendanceTab';
 import { TeacherMaterialsTab } from './TeacherMaterialsTab';
 import { TeacherChatMonitorTab } from './TeacherChatMonitorTab';
 import { TeacherDueDatesTab } from './TeacherDueDatesTab';
@@ -101,7 +102,7 @@ import { toast } from 'sonner';
 // Grades are intentionally excluded to avoid realtime bursts during bulk grading.
 // 'grades' is deliberately absent: the teacher is the only grade editor and a
 // self-triggered refresh mid-typing would clobber unsaved grading inputs.
-const TEACHER_DASHBOARD_SYNC_TABLES: string[] = ['assignments', 'absence_requests', 'assignment_due_dates', 'students', 'groups'];
+const TEACHER_DASHBOARD_SYNC_TABLES: string[] = ['assignments', 'absence_requests', 'assignment_due_dates', 'students', 'groups', 'attendance'];
 
 interface TeacherDashboardProps {
   onSwitchView: () => void;
@@ -165,7 +166,8 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
       fetchAllGrades(),
       fetchAbsenceCounts(),
       fetchUnreadMessages(),
-      fetchDueDatesList()
+      fetchDueDatesList(),
+      fetchAttendanceCounts()
     ]);
   }, [refetchData]);
 
@@ -266,6 +268,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
   // Unread messages from students
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [unreadEmailCount, setUnreadEmailCount] = useState(0);
+  const [attendanceCounts, setAttendanceCounts] = useState<Record<string, number>>({});
 
   // Rubric scoring dialog state
   const [rubricDialogOpen, setRubricDialogOpen] = useState(false);
@@ -389,6 +392,20 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
         counts[request.student_id] = (counts[request.student_id] || 0) + 1;
       });
       setAbsenceCounts(counts);
+    }
+  };
+
+  const fetchAttendanceCounts = async () => {
+    const { data, error } = await supabase
+      .from('attendance')
+      .select('student_id');
+
+    if (!error && data) {
+      const counts: Record<string, number> = {};
+      data.forEach((row) => {
+        counts[row.student_id] = (counts[row.student_id] || 0) + 1;
+      });
+      setAttendanceCounts(counts);
     }
   };
 
@@ -1513,6 +1530,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
         return grade('Assignment 1') + grade('Assignment 2') + grade('Assignment 3') +
           grade('Participation') + grade('Midterm Presentation') + grade('Final Project');
       case 'absence': return getAbsenceRate(s.id);
+      case 'attendance_count': return attendanceCounts[s.id] || 0;
       default: return '';
     }
   };
@@ -1813,14 +1831,14 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                       variant="ghost" 
                       size="sm" 
                       className={`gap-1.5 transition-all duration-200 hover:bg-muted active:scale-95 ${
-                        (activeTab === 'students' || activeTab === 'absence') 
+                        (activeTab === 'students' || activeTab === 'absence' || activeTab === 'attendance') 
                           ? 'text-primary font-medium' 
                           : 'text-muted-foreground'
                       }`}
                     >
                       <Users className="w-4 h-4" />
                       <span className="hidden sm:inline">Students</span>
-                      {(activeTab === 'students' || activeTab === 'absence') && (
+                      {(activeTab === 'students' || activeTab === 'absence' || activeTab === 'attendance') && (
                         <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                       )}
                     </Button>
@@ -1834,13 +1852,21 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                       Student List
                       {activeTab === 'students' && <Check className="w-4 h-4 ml-auto" />}
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       onClick={() => setActiveTab('absence')}
                       className={`gap-2 ${activeTab === 'absence' ? 'bg-primary/10 text-primary font-medium' : ''}`}
                     >
                       <Calendar className="w-4 h-4" />
                       Absence
                       {activeTab === 'absence' && <Check className="w-4 h-4 ml-auto" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setActiveTab('attendance')}
+                      className={`gap-2 ${activeTab === 'attendance' ? 'bg-primary/10 text-primary font-medium' : ''}`}
+                    >
+                      <UserCheck className="w-4 h-4" />
+                      Attendance
+                      {activeTab === 'attendance' && <Check className="w-4 h-4 ml-auto" />}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -1998,68 +2024,58 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
       </header>
 
       <main className="container mx-auto px-4 py-4 pb-safe">
-        {/* Minimized Stats Row */}
-        <div className="flex flex-wrap items-center gap-3 mb-4 px-2">
-          <div className="flex items-center gap-2 text-sm">
-            <Users className="w-4 h-4 text-primary" />
-            <span className="font-medium">{students.length}</span>
-            <span className="text-muted-foreground">Students</span>
-          </div>
-          <span className="text-muted-foreground">•</span>
-          <div className="flex items-center gap-2 text-sm">
-            <UserCheck className="w-4 h-4 text-success" />
-            <span className="font-medium">{studentsInGroups}</span>
-            <span className="text-muted-foreground">Grouped</span>
-          </div>
-          <span className="text-muted-foreground">•</span>
-          <div className="flex items-center gap-2 text-sm">
-            <User className="w-4 h-4 text-accent" />
-            <span className="font-medium">{ungroupedStudents}</span>
-            <span className="text-muted-foreground">Ungrouped</span>
-          </div>
-          <span className="text-muted-foreground hidden sm:inline">•</span>
-          <div className="flex items-center gap-2 text-sm hidden sm:flex">
-            <FileText className="w-4 h-4 text-primary" />
-            <span className="font-medium">{assignments.filter(a => a.file_name.includes('Assignment 1')).length}</span>
-            <span className="text-muted-foreground">A1</span>
-          </div>
-          <span className="text-muted-foreground hidden sm:inline">•</span>
-          <div className="flex items-center gap-2 text-sm hidden sm:flex">
-            <FileText className="w-4 h-4 text-primary" />
-            <span className="font-medium">{assignments.filter(a => a.file_name.includes('Assignment 2')).length}</span>
-            <span className="text-muted-foreground">A2</span>
-          </div>
-          <span className="text-muted-foreground hidden sm:inline">•</span>
-          <div className="flex items-center gap-2 text-sm hidden sm:flex">
-            <FileText className="w-4 h-4 text-primary" />
-            <span className="font-medium">{assignments.filter(a => a.file_name.includes('Assignment 3')).length}</span>
-            <span className="text-muted-foreground">A3</span>
-          </div>
-          <span className="text-muted-foreground hidden sm:inline">•</span>
-          <div className="flex items-center gap-2 text-sm hidden sm:flex">
-            <ClipboardCheck className="w-4 h-4 text-primary" />
-            <span className="font-medium">{midtermHandedIn}</span>
-            <span className="text-muted-foreground">Midterm</span>
-          </div>
-          <span className="text-muted-foreground hidden sm:inline">•</span>
-          <div className="flex items-center gap-2 text-sm hidden sm:flex">
-            <ClipboardCheck className="w-4 h-4 text-primary" />
-            <span className="font-medium">{finalHandedIn}</span>
-            <span className="text-muted-foreground">Final</span>
-          </div>
-          {sectionCounts.map(({ section, count }) => (
-            <span key={section} className="hidden items-center gap-1.5 text-sm sm:inline-flex">
-              <span className="text-muted-foreground">•</span>
-              <Badge variant="secondary" className="text-xs">{section}</Badge>
-              <span className="font-medium">{count}</span>
+        {/* Stats: three labeled clusters instead of one long dotted line */}
+        <div className="mb-4 flex flex-wrap items-stretch gap-2 px-2">
+          <div className="flex items-center gap-3 rounded-lg border bg-card px-3 py-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Roster</span>
+            <span className="flex items-center gap-1.5 text-sm">
+              <Users className="h-4 w-4 text-primary" />
+              <span className="font-semibold">{students.length}</span>
             </span>
-          ))}
+            <span className="flex items-center gap-1.5 text-sm" title="Students in a group">
+              <UserCheck className="h-4 w-4 text-success" />
+              <span className="font-semibold">{studentsInGroups}</span>
+              <span className="text-xs text-muted-foreground">grouped</span>
+            </span>
+            <span className="flex items-center gap-1.5 text-sm" title="Students without a group">
+              <User className="h-4 w-4 text-accent" />
+              <span className="font-semibold">{ungroupedStudents}</span>
+              <span className="text-xs text-muted-foreground">ungrouped</span>
+            </span>
+          </div>
+
+          <div className="hidden items-center gap-3 rounded-lg border bg-card px-3 py-1.5 sm:flex">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Sections</span>
+            {sectionCounts.map(({ section, count }) => (
+              <span key={section} className="flex items-center gap-1 text-sm">
+                <Badge variant="secondary" className="text-xs">{section}</Badge>
+                <span className="font-semibold">{count}</span>
+              </span>
+            ))}
+          </div>
+
+          <div className="hidden items-center gap-3 rounded-lg border bg-card px-3 py-1.5 sm:flex">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Hand-ins</span>
+            {[
+              { label: 'A1', value: assignments.filter(a => a.file_name.includes('Assignment 1')).length },
+              { label: 'A2', value: assignments.filter(a => a.file_name.includes('Assignment 2')).length },
+              { label: 'A3', value: assignments.filter(a => a.file_name.includes('Assignment 3')).length },
+              { label: 'Midterm', value: midtermHandedIn },
+              { label: 'Final', value: finalHandedIn },
+            ].map(({ label, value }) => (
+              <span key={label} className="flex items-center gap-1 text-sm" title={`${label} submissions`}>
+                <span className="text-xs text-muted-foreground">{label}</span>
+                <span className={`font-semibold ${value > 0 ? 'text-success' : ''}`}>{value}</span>
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* Section Title */}
         <h2 className="text-2xl font-bold font-display mb-4">
           {activeTab === 'students' && 'Student List'}
           {activeTab === 'absence' && 'Absence Requests'}
+          {activeTab === 'attendance' && 'Attendance'}
           {activeTab === 'assignments' && 'Student Submissions'}
           {activeTab === 'grading' && 'Grading'}
           {activeTab === 'materials' && 'Briefs & Materials'}
@@ -2240,6 +2256,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                           { label: 'Asgn 3', col: 'a3', center: true, title: 'Max: 10' },
                           { label: 'Midterm', col: 'midterm', center: true, title: 'Max: 30' },
                           { label: 'Final', col: 'final', center: true, title: 'Max: 40' },
+                          { label: 'Attendance', col: 'attendance_count', center: true, title: 'Times marked present on the Attendance page' },
                           { label: 'Absence Rate', col: 'absence', center: true, title: '(Approved absences / 14) × 100' },
                         ].map(h => (
                           <SortHead
@@ -2350,6 +2367,12 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                             <TableCell className="text-center">
                               <span className="font-mono text-base text-foreground">
                                 {parseFloat(getStudentGrade(student.id, 'Final Project')) || 0}/40
+                              </span>
+                            </TableCell>
+                            {/* Attendance */}
+                            <TableCell className="text-center">
+                              <span className={`font-mono text-base ${(attendanceCounts[student.id] || 0) > 0 ? 'text-success font-semibold' : 'text-muted-foreground'}`}>
+                                +{attendanceCounts[student.id] || 0}
                               </span>
                             </TableCell>
                             {/* Absence Rate */}
@@ -3157,6 +3180,11 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
           {/* Absence Tab */}
           <TabsContent value="absence" className="animate-fade-in">
             <AbsenceRequestsTab />
+          </TabsContent>
+
+          {/* Attendance Tab */}
+          <TabsContent value="attendance" className="animate-fade-in">
+            <TeacherAttendanceTab />
           </TabsContent>
 
           {/* Messages Tab */}
