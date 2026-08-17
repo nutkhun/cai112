@@ -25,9 +25,20 @@ export interface PresentationSlot {
   slot_time: string;
   section: string | null;
   booked_group_id: string | null;
+  queue_no: number | null;
 }
 
 const EXAM_TYPES = ['Midterm Presentation', 'Final Project'];
+
+/** Class periods per section - slots are generated inside these windows. */
+const SECTION_WINDOWS: Record<string, { start: string; end: string }> = {
+  '458A': { start: '08:40', end: '11:00' },
+  '457A': { start: '12:00', end: '14:20' },
+  '458B': { start: '14:00', end: '16:50' },
+};
+
+const toMinutes = (t: string) => parseInt(t.slice(0, 2)) * 60 + parseInt(t.slice(3, 5));
+const toTime = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 export const TeacherPresentationSlotsTab = () => {
   const { getGroupById } = useGroups();
@@ -37,6 +48,9 @@ export const TeacherPresentationSlotsTab = () => {
   const [slotTime, setSlotTime] = useState('');
   const [section, setSection] = useState('all');
   const [saving, setSaving] = useState(false);
+  const [genSection, setGenSection] = useState('458A');
+  const [genLength, setGenLength] = useState('15');
+  const [generating, setGenerating] = useState(false);
 
   const fetchSlots = async () => {
     const { data } = await supabase
@@ -83,6 +97,56 @@ export const TeacherPresentationSlotsTab = () => {
     setSaving(false);
   };
 
+  const generateSlots = async () => {
+    if (!slotDate) {
+      toast.error('Please pick a date first');
+      return;
+    }
+    const win = SECTION_WINDOWS[genSection];
+    const length = parseInt(genLength);
+    const startMin = toMinutes(win.start);
+    const endMin = toMinutes(win.end);
+
+    // Skip times that already exist for this exam/date/section.
+    const existing = new Set(
+      slots
+        .filter(s => s.exam_type === examType && s.slot_date === slotDate && s.section === genSection)
+        .map(s => s.slot_time)
+    );
+
+    const rows = [];
+    let queue = 1;
+    for (let t = startMin; t + length <= endMin; t += length) {
+      const time = toTime(t);
+      if (!existing.has(time)) {
+        rows.push({
+          id: crypto.randomUUID(),
+          exam_type: examType,
+          slot_date: slotDate,
+          slot_time: time,
+          section: genSection,
+          booked_group_id: null,
+          queue_no: queue,
+        });
+      }
+      queue++;
+    }
+
+    if (rows.length === 0) {
+      toast.error('All slots in this window already exist');
+      return;
+    }
+
+    setGenerating(true);
+    const { error } = await supabase.from('presentation_slots').insert(rows);
+    if (error) toast.error('Failed to generate slots');
+    else {
+      toast.success(`Created ${rows.length} slots for ${genSection} (${win.start}-${win.end}, every ${length} min)`);
+      fetchSlots();
+    }
+    setGenerating(false);
+  };
+
   const deleteSlot = async (slot: PresentationSlot) => {
     const { error } = await supabase.from('presentation_slots').delete().eq('id', slot.id);
     if (error) toast.error('Failed to delete slot');
@@ -98,8 +162,8 @@ export const TeacherPresentationSlotsTab = () => {
             Add Presentation Slot
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-5">
+        <CardContent className="space-y-5">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>For</Label>
               <Select value={examType} onValueChange={setExamType}>
@@ -113,8 +177,56 @@ export const TeacherPresentationSlotsTab = () => {
               <Label>Date</Label>
               <Input type="date" value={slotDate} onChange={(e) => setSlotDate(e.target.value)} />
             </div>
+          </div>
+
+          {/* Auto-generate a full class window */}
+          <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+            <p className="text-sm font-medium">Generate the whole class period</p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Section (class time)</Label>
+                <Select value={genSection} onValueChange={setGenSection}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SECTIONS.map(s => (
+                      <SelectItem key={s} value={s}>
+                        {s} · {SECTION_WINDOWS[s].start}-{SECTION_WINDOWS[s].end}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Presentation length</Label>
+                <Select value={genLength} onValueChange={setGenLength}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {['10', '15', '20', '25', '30'].map(m => (
+                      <SelectItem key={m} value={m}>{m} minutes</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button onClick={generateSlots} disabled={generating || !slotDate} className="w-full gap-2">
+                  <CalendarClock className="w-4 h-4" />
+                  {generating ? 'Generating...' : (() => {
+                    const w = SECTION_WINDOWS[genSection];
+                    const n = Math.floor((toMinutes(w.end) - toMinutes(w.start)) / parseInt(genLength));
+                    return `Generate ${n} slots`;
+                  })()}
+                </Button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Fills {genSection}'s class period with numbered queue slots, every {genLength} minutes. Already-existing times are skipped.
+            </p>
+          </div>
+
+          {/* Manual single slot */}
+          <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
-              <Label>Time</Label>
+              <Label>Or add a single slot · Time</Label>
               <Input type="time" value={slotTime} onChange={(e) => setSlotTime(e.target.value)} />
             </div>
             <div className="space-y-2">
@@ -128,7 +240,7 @@ export const TeacherPresentationSlotsTab = () => {
               </Select>
             </div>
             <div className="flex items-end">
-              <Button onClick={addSlot} disabled={saving || !slotDate || !slotTime} className="w-full gap-2">
+              <Button variant="outline" onClick={addSlot} disabled={saving || !slotDate || !slotTime} className="w-full gap-2">
                 <Plus className="w-4 h-4" />
                 Add Slot
               </Button>
@@ -166,6 +278,7 @@ export const TeacherPresentationSlotsTab = () => {
                       >
                         <div className="min-w-0">
                           <p className="text-sm font-medium">
+                            {slot.queue_no != null && <span className="mr-1 text-primary">#{slot.queue_no}</span>}
                             {format(new Date(slot.slot_date + 'T00:00:00'), 'EEE, MMM d')} · {slot.slot_time}
                           </p>
                           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

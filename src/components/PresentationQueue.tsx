@@ -14,6 +14,7 @@ interface Slot {
   slot_time: string;
   section: string | null;
   booked_group_id: string | null;
+  queue_no: number | null;
 }
 
 const EXAM_TYPES = ['Midterm Presentation', 'Final Project'];
@@ -139,6 +140,7 @@ export const PresentationQueue = ({ groupId }: { groupId: string }) => {
                       >
                         <span className="flex items-center justify-between gap-1">
                           <span className="font-medium">
+                            {slot.queue_no != null && <span className="mr-1 text-primary">#{slot.queue_no}</span>}
                             {format(new Date(slot.slot_date + 'T00:00:00'), 'EEE, MMM d')}
                           </span>
                           {mine ? <Check className="h-3.5 w-3.5 text-success" /> : taken ? <Lock className="h-3.5 w-3.5 text-muted-foreground" /> : null}
