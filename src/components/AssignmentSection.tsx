@@ -473,7 +473,7 @@ export const AssignmentSection = ({ groupId, defaultExpanded = false }: Assignme
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 font-display font-semibold text-lg">
             <FileText className="w-5 h-5 text-primary" />
-            Assignment Section
+            Assignment and Project Submission
             <Badge variant="secondary" className="text-xs">
               {assignments.length} file{assignments.length !== 1 ? 's' : ''}
             </Badge>
