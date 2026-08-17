@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/backend/client';
 import { useGroups } from '@/context/GroupContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CalendarClock, Check, Lock } from 'lucide-react';
+import { CalendarClock, Check, Lock, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Slot {
@@ -31,6 +31,7 @@ export const PresentationQueue = ({ groupId }: { groupId: string | null }) => {
   const bookingLocked = !groupId;
   const [slots, setSlots] = useState<Slot[]>([]);
   const [busy, setBusy] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
 
   const fetchSlots = async () => {
     const { data } = await supabase.from('presentation_slots').select('*');
@@ -94,14 +95,30 @@ export const PresentationQueue = ({ groupId }: { groupId: string | null }) => {
     }
   };
 
+  const myBookings = groupId ? slots.filter(s => s.booked_group_id === groupId).length : 0;
+
   return (
     <Card className="shadow-soft border-0">
-      <CardHeader className="py-3">
-        <CardTitle className="flex items-center gap-2 font-display font-semibold text-base sm:text-lg">
-          <CalendarClock className="w-5 h-5 text-primary" />
-          Presentation Queue
-        </CardTitle>
+      <CardHeader
+        className="cursor-pointer py-3 transition-colors hover:bg-muted/50"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 font-display font-semibold text-base sm:text-lg">
+            <CalendarClock className="w-5 h-5 text-primary" />
+            Presentation Queue
+            {myBookings > 0 && (
+              <Badge className="border-0 bg-success/15 text-xs text-success">{myBookings} booked</Badge>
+            )}
+          </CardTitle>
+          {isOpen ? (
+            <ChevronUp className="w-5 h-5 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-muted-foreground" />
+          )}
+        </div>
       </CardHeader>
+      {isOpen && (
       <CardContent className="space-y-4 pt-0">
         {bookingLocked && (
           <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
@@ -168,6 +185,7 @@ export const PresentationQueue = ({ groupId }: { groupId: string | null }) => {
           Anyone in your group can book. Picking a new slot moves your booking; who booked which slot stays private.
         </p>
       </CardContent>
+      )}
     </Card>
   );
 };
