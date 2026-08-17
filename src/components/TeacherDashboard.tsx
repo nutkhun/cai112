@@ -306,6 +306,19 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
   // Missing-score highlighting lives only in the Grading table, behind a toggle.
   const [highlightZeroScores, setHighlightZeroScores] = useState(false);
 
+  // Score columns in the Student List can be hidden for a clean roster view.
+  const [showScores, setShowScores] = useState(() => localStorage.getItem('cai112-show-scores') !== 'off');
+  const toggleShowScores = (v: boolean) => {
+    setShowScores(v);
+    localStorage.setItem('cai112-show-scores', v ? 'on' : 'off');
+    // Sorting by a hidden column would be invisible - fall back to index.
+    if (!v && studentSortCol && ['participation', 'a1', 'a2', 'a3', 'midterm', 'final'].includes(studentSortCol)) {
+      setStudentSortCol('index');
+      setStudentSortDir('asc');
+    }
+  };
+  const SCORE_COLS = ['participation', 'a1', 'a2', 'a3', 'midterm', 'final'];
+
   // Click-to-sort on table headers. A non-null column overrides the sort
   // dropdown; picking from the dropdown clears it again.
   // Student list opens sorted by index number, low to high.
@@ -2150,6 +2163,14 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
 
                   <div className="flex items-center gap-2">
                     <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
+                    <label className="mr-2 flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+                      <Switch
+                        checked={showScores}
+                        onCheckedChange={toggleShowScores}
+                        aria-label="Show score columns"
+                      />
+                      Scores
+                    </label>
                     <Select value={studentSort} onValueChange={(v) => { setStudentSort(v as typeof studentSort); setStudentSortCol(null); }}>
                       <SelectTrigger className="w-[120px] h-9">
                         <SelectValue placeholder="Sort by" />
@@ -2258,7 +2279,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                           { label: 'Final', col: 'final', center: true, title: 'Max: 40' },
                           { label: 'Attendance', col: 'attendance_count', center: true, title: 'Times marked present on the Attendance page' },
                           { label: 'Absence Rate', col: 'absence', center: true, title: '(Approved absences / 14) × 100' },
-                        ].map(h => (
+                        ].filter(h => showScores || !SCORE_COLS.includes(h.col)).map(h => (
                           <SortHead
                             key={h.col}
                             label={h.label}
@@ -2333,42 +2354,46 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                                 <span className="text-muted-foreground">-</span>
                               )}
                             </TableCell>
-                            {/* Participation */}
-                            <TableCell className="text-center">
-                              <span className="font-mono text-base text-foreground">
-                                {parseFloat(getStudentGrade(student.id, 'Participation')) || 0}/10
-                              </span>
-                            </TableCell>
-                            {/* Assignment 1 */}
-                            <TableCell className="text-center">
-                              <span className="font-mono text-base text-foreground">
-                                {parseFloat(getStudentGrade(student.id, 'Assignment 1')) || 0}/5
-                              </span>
-                            </TableCell>
-                            {/* Assignment 2 */}
-                            <TableCell className="text-center">
-                              <span className="font-mono text-base text-foreground">
-                                {parseFloat(getStudentGrade(student.id, 'Assignment 2')) || 0}/5
-                              </span>
-                            </TableCell>
-                            {/* Assignment 3 */}
-                            <TableCell className="text-center">
-                              <span className="font-mono text-base text-foreground">
-                                {parseFloat(getStudentGrade(student.id, 'Assignment 3')) || 0}/10
-                              </span>
-                            </TableCell>
-                            {/* Midterm Presentation */}
-                            <TableCell className="text-center">
-                              <span className="font-mono text-base text-foreground">
-                                {parseFloat(getStudentGrade(student.id, 'Midterm Presentation')) || 0}/30
-                              </span>
-                            </TableCell>
-                            {/* Final Project */}
-                            <TableCell className="text-center">
-                              <span className="font-mono text-base text-foreground">
-                                {parseFloat(getStudentGrade(student.id, 'Final Project')) || 0}/40
-                              </span>
-                            </TableCell>
+                            {showScores && (
+                              <>
+                                {/* Participation */}
+                                <TableCell className="text-center">
+                                  <span className="font-mono text-base text-foreground">
+                                    {parseFloat(getStudentGrade(student.id, 'Participation')) || 0}/10
+                                  </span>
+                                </TableCell>
+                                {/* Assignment 1 */}
+                                <TableCell className="text-center">
+                                  <span className="font-mono text-base text-foreground">
+                                    {parseFloat(getStudentGrade(student.id, 'Assignment 1')) || 0}/5
+                                  </span>
+                                </TableCell>
+                                {/* Assignment 2 */}
+                                <TableCell className="text-center">
+                                  <span className="font-mono text-base text-foreground">
+                                    {parseFloat(getStudentGrade(student.id, 'Assignment 2')) || 0}/5
+                                  </span>
+                                </TableCell>
+                                {/* Assignment 3 */}
+                                <TableCell className="text-center">
+                                  <span className="font-mono text-base text-foreground">
+                                    {parseFloat(getStudentGrade(student.id, 'Assignment 3')) || 0}/10
+                                  </span>
+                                </TableCell>
+                                {/* Midterm Presentation */}
+                                <TableCell className="text-center">
+                                  <span className="font-mono text-base text-foreground">
+                                    {parseFloat(getStudentGrade(student.id, 'Midterm Presentation')) || 0}/30
+                                  </span>
+                                </TableCell>
+                                {/* Final Project */}
+                                <TableCell className="text-center">
+                                  <span className="font-mono text-base text-foreground">
+                                    {parseFloat(getStudentGrade(student.id, 'Final Project')) || 0}/40
+                                  </span>
+                                </TableCell>
+                              </>
+                            )}
                             {/* Attendance */}
                             <TableCell className="text-center">
                               <span className={`font-mono text-base ${(attendanceCounts[student.id] || 0) > 0 ? 'text-success font-semibold' : 'text-muted-foreground'}`}>
