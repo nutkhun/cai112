@@ -30,6 +30,7 @@ import {
   Mail,
   CalendarX,
   CalendarClock,
+  FolderOpen,
 } from 'lucide-react';
 import { Student } from '@/types';
 import { supabase } from '@/integrations/backend/client';
@@ -37,7 +38,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useUnreadTeacherMessages } from '@/hooks/useUnreadTeacherMessages';
 import { cn } from '@/lib/utils';
 
-type StudentTab = 'group' | 'chat' | 'work' | 'inbox' | 'absence' | 'slots';
+type StudentTab = 'group' | 'chat' | 'work' | 'materials' | 'inbox' | 'absence' | 'slots';
 
 export const StudentDashboard = () => {
   const [leaderDialogOpen, setLeaderDialogOpen] = useState(false);
@@ -135,6 +136,7 @@ export const StudentDashboard = () => {
     { id: 'group' as const, label: 'Group', icon: Users },
     // Group chat is hidden for now; re-add a 'chat' item here to restore it.
     { id: 'work' as const, label: 'Assignment', icon: ClipboardList },
+    { id: 'materials' as const, label: 'Materials', icon: FolderOpen },
     { id: 'inbox' as const, label: 'Inbox', icon: Mail, badge: unreadCount },
     { id: 'absence' as const, label: 'Absence', icon: CalendarX },
     { id: 'slots' as const, label: 'Slots', icon: CalendarClock },
@@ -295,6 +297,12 @@ export const StudentDashboard = () => {
         return (
           <div className="space-y-4 animate-fade-in">
             <AssignmentSection groupId={currentGroup?.id} defaultExpanded />
+          </div>
+        );
+
+      case 'materials':
+        return (
+          <div className="space-y-4 animate-fade-in">
             <MaterialsSection />
           </div>
         );
