@@ -9,7 +9,7 @@
 
 @layer base {
   :root {
-    --background: 180 25% 96%;
+    --background: 180 25% 82%; /* 15% darker than the original 96% lightness */
     --foreground: 222 25% 12%;
 
     --card: 0 0% 100%;
@@ -60,7 +60,7 @@
   }
 
   .dark {
-    --background: 222 30% 9%;
+    --background: 222 30% 8%; /* dark mode nudged darker to match */
     --foreground: 180 20% 92%;
 
     --card: 222 26% 13%;
