@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { StickyNote } from 'lucide-react';
 import { supabase } from '@/integrations/backend/client';
 import { toast } from 'sonner';
 
@@ -43,8 +45,30 @@ export const RubricScoringDialog = ({
 }: RubricScoringDialogProps) => {
   const [scores, setScores] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [note, setNote] = useState('');
+  const [noteGroupId, setNoteGroupId] = useState<string | null>(null);
+  const [noteSaving, setNoteSaving] = useState(false);
 
   const storageKey = `rubric:${studentId}:${assignmentType}`;
+  // Same storage the grading table's sticky-note buttons use, so the note is
+  // shared: group note for grouped students, personal note otherwise.
+  const noteCategory = assignmentType === 'Midterm Presentation' ? 'midterm' : 'final';
+
+  const saveNote = async (value: string) => {
+    setNoteSaving(true);
+    const trimmed = value.trim();
+    const { error } = noteGroupId
+      ? await supabase.from('group_notes').upsert(
+          { group_id: noteGroupId, note: trimmed, category: noteCategory },
+          { onConflict: 'group_id,category' }
+        )
+      : await supabase.from('student_notes').upsert(
+          { student_id: studentId, note: trimmed, category: noteCategory },
+          { onConflict: 'student_id,category' }
+        );
+    setNoteSaving(false);
+    if (error) toast.error('Failed to save the note');
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -85,6 +109,27 @@ export const RubricScoringDialog = ({
     })();
     return () => { cancelled = true; };
   }, [open, studentId, assignmentType, storageKey]);
+
+  // Load the existing presentation note (group note when grouped).
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      const { data: student } = await supabase
+        .from('students')
+        .select('group_id')
+        .eq('id', studentId)
+        .maybeSingle();
+      if (cancelled) return;
+      const gid = student?.group_id || null;
+      setNoteGroupId(gid);
+      const { data } = gid
+        ? await supabase.from('group_notes').select('note').eq('group_id', gid).eq('category', noteCategory).maybeSingle()
+        : await supabase.from('student_notes').select('note').eq('student_id', studentId).eq('category', noteCategory).maybeSingle();
+      if (!cancelled) setNote(data?.note || '');
+    })();
+    return () => { cancelled = true; };
+  }, [open, studentId, noteCategory]);
 
   const handleScoreChange = (criteriaName: string, value: string) => {
     if (value !== '') {
@@ -135,6 +180,22 @@ export const RubricScoringDialog = ({
           ))}
         </div>
 
+        <div className="space-y-1.5 border-t pt-3">
+          <Label className="flex items-center gap-1.5 text-sm">
+            <StickyNote className="h-4 w-4 text-primary" />
+            Presentation notes {noteGroupId ? '(shared for the whole group)' : ''}
+            {noteSaving && <span className="text-xs text-muted-foreground">saving...</span>}
+          </Label>
+          <Textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onBlur={() => saveNote(note)}
+            rows={3}
+            placeholder="Jot observations while they present - saved automatically."
+            className="resize-none text-sm"
+          />
+        </div>
+
         <div className="border-t pt-3 mt-2 space-y-1">
           <div className="flex justify-between items-center text-sm">
             <span className="text-muted-foreground">Weighted Total:</span>
@@ -155,6 +216,7 @@ export const RubricScoringDialog = ({
           <Button
             onClick={async () => {
               setSaving(true);
+              await saveNote(note);
               try { localStorage.setItem(storageKey, JSON.stringify(scores)); } catch {}
               // Save rubric detail for every member of the group so all members stay in sync
               const { data: student } = await supabase
