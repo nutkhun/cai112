@@ -2,9 +2,16 @@ import { useState, useEffect } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { supabase } from '@/integrations/backend/client';
 import { useGroups } from '@/context/GroupContext';
-import { AlertTriangle, Calendar, X, Bell } from 'lucide-react';
+import { AlertTriangle, Calendar, X, Bell, BellRing } from 'lucide-react';
 import { format, differenceInDays, parseISO, startOfDay } from 'date-fns';
 
 interface DueDate {
@@ -31,6 +38,10 @@ export const DueDateNotifications = () => {
   }[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  // Login popups: fired once per assignment at 2 days out, once at 1 day out,
+  // and once after the deadline has passed.
+  const [popupItems, setPopupItems] = useState<{ assignment: DueDate; daysUntilDue: number; stage: string }[]>([]);
+  const [popupOpen, setPopupOpen] = useState(false);
 
   useEffect(() => {
     if (!currentStudent) return;
@@ -80,7 +91,7 @@ export const DueDateNotifications = () => {
         const dueDateParsed = startOfDay(parseISO(dueDate.due_date));
         const daysUntilDue = differenceInDays(dueDateParsed, today);
 
-        if (daysUntilDue <= 3) {
+        if (daysUntilDue <= 2) {
           // Check if assignment is submitted
           const isSubmitted = allSubmissions.some((submission) => {
             // Handle Assignment 0, 1, 2 (individual)
@@ -108,6 +119,25 @@ export const DueDateNotifications = () => {
       });
 
       setNotifications(upcomingNotifications);
+
+      // Decide which items deserve a one-time popup this login.
+      const stageFor = (days: number): string | null =>
+        days === 2 ? '2d' : days === 1 ? '1d' : days < 0 ? 'late' : null;
+      const fresh = upcomingNotifications
+        .map(n => ({ ...n, stage: stageFor(n.daysUntilDue) }))
+        .filter((n): n is typeof n & { stage: string } => {
+          if (!n.stage) return false;
+          const key = `cai112-duepop:${currentStudent.id}:${n.assignment.id}:${n.stage}`;
+          return !localStorage.getItem(key);
+        });
+      if (fresh.length > 0) {
+        // Mark as shown immediately - each stage pops exactly once.
+        fresh.forEach(n => {
+          localStorage.setItem(`cai112-duepop:${currentStudent.id}:${n.assignment.id}:${n.stage}`, '1');
+        });
+        setPopupItems(fresh);
+        setPopupOpen(true);
+      }
       setLoading(false);
     };
 
@@ -142,11 +172,57 @@ export const DueDateNotifications = () => {
     (n) => !dismissed.has(n.assignment.id)
   );
 
-  if (loading || visibleNotifications.length === 0) {
-    return null;
-  }
+  const lateItems = popupItems.filter(n => n.stage === 'late');
+  const soonItems = popupItems.filter(n => n.stage !== 'late');
 
   return (
+    <>
+      {/* One-time login popup: 2 days out, 1 day out, and once when overdue */}
+      <Dialog open={popupOpen} onOpenChange={setPopupOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BellRing className="w-5 h-5 text-amber-500" />
+              {lateItems.length > 0 && soonItems.length === 0 ? 'Past-due work' : 'Deadline reminder'}
+            </DialogTitle>
+            <DialogDescription>
+              {soonItems.length > 0 && lateItems.length > 0
+                ? 'Some work is due soon and some is already past due.'
+                : lateItems.length > 0
+                  ? 'The deadline has passed, but you can still hand this work in.'
+                  : 'These deadlines are coming up.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {popupItems.map(({ assignment, daysUntilDue, stage }) => (
+              <div
+                key={assignment.id + stage}
+                className={`rounded-lg border p-3 ${stage === 'late' ? 'border-destructive/40 bg-destructive/5' : 'border-amber-500/40 bg-amber-500/5'}`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-medium text-sm">{assignment.assignment_name}</p>
+                  <Badge variant={stage === 'late' ? 'destructive' : 'default'} className={stage === 'late' ? '' : 'bg-amber-500'}>
+                    {stage === 'late'
+                      ? `${-daysUntilDue} day${daysUntilDue === -1 ? '' : 's'} past due`
+                      : daysUntilDue === 1 ? 'Due tomorrow' : 'Due in 2 days'}
+                  </Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Due {format(parseISO(assignment.due_date), 'EEEE, MMMM d')}
+                  {stage === 'late'
+                    ? ' - you can still submit late, but points are deducted for late work. Submit as soon as you can to limit the loss.'
+                    : ' - submit before the deadline to keep your full score.'}
+                </p>
+              </div>
+            ))}
+          </div>
+          <Button className="w-full" onClick={() => setPopupOpen(false)}>
+            Got it
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      {!loading && visibleNotifications.length > 0 && (
     <div className="space-y-3 mb-4">
       {visibleNotifications.map(({ assignment, daysUntilDue }) => (
         <Alert
@@ -206,5 +282,7 @@ export const DueDateNotifications = () => {
         </Alert>
       ))}
     </div>
+      )}
+    </>
   );
 };
