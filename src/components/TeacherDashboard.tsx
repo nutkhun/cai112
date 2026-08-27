@@ -2576,6 +2576,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Assignments</SelectItem>
+                      <SelectItem value="Assignment 0">Assignment 0</SelectItem>
                       <SelectItem value="Assignment 1">Assignment 1</SelectItem>
                       <SelectItem value="Assignment 2">Assignment 2</SelectItem>
                       <SelectItem value="Assignment 3">Assignment 3</SelectItem>
