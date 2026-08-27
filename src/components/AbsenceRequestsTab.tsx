@@ -23,6 +23,13 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { Search, Filter, Download, Calendar, FileText, X, ArrowUpDown, Eye, Check, XIcon } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
 interface AbsenceRequest {
@@ -41,6 +48,7 @@ export const AbsenceRequestsTab = () => {
   const { students } = useGroups();
   const [absenceRequests, setAbsenceRequests] = useState<AbsenceRequest[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [readingRequest, setReadingRequest] = useState<AbsenceRequest | null>(null);
   const [sectionFilter, setSectionFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'date' | 'name' | 'submitted'>('submitted');
@@ -288,9 +296,15 @@ export const AbsenceRequestsTab = () => {
                           {format(new Date(request.absence_date), 'MMM d, yyyy')}
                         </TableCell>
                         <TableCell>
-                          <p className="max-w-[200px] truncate" title={request.reason}>
-                            {request.reason}
-                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setReadingRequest(request)}
+                            className="max-w-[240px] text-left hover:underline"
+                            title="Read the full reason"
+                          >
+                            <span className="line-clamp-2 text-sm">{request.reason}</span>
+                            <span className="text-xs font-medium text-primary">Read full</span>
+                          </button>
                         </TableCell>
                         <TableCell>
                           <Button
@@ -341,6 +355,28 @@ export const AbsenceRequestsTab = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Full reason reader */}
+      <Dialog open={!!readingRequest} onOpenChange={(v) => !v && setReadingRequest(null)}>
+        <DialogContent className="sm:max-w-lg">
+          {readingRequest && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-base">
+                  Absence reason — {getStudentById(readingRequest.student_id)?.name || 'Unknown student'}
+                </DialogTitle>
+                <DialogDescription>
+                  Absent {format(new Date(readingRequest.absence_date), 'EEEE, MMMM d, yyyy')} · submitted{' '}
+                  {format(new Date(readingRequest.created_at), 'MMM d, yyyy')}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="max-h-[50vh] overflow-y-auto whitespace-pre-wrap rounded-lg border bg-muted/30 p-4 text-sm">
+                {readingRequest.reason}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
