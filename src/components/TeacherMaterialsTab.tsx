@@ -34,6 +34,9 @@ import {
   FolderOpen
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
+import { TeacherDueDatesTab } from './TeacherDueDatesTab';
 
 interface Material {
   id: string;
@@ -50,10 +53,10 @@ interface Material {
 
 /** Upload categories; assignment-like ones can carry a due date. */
 export const MATERIAL_CATEGORIES = [
-  { value: 'lecture', label: 'Lecture Material', badge: 'Lecture', dueDateFor: null as string | null, badgeClass: 'bg-muted text-foreground' },
-  { value: 'assignment', label: 'Assignment Instruction', badge: 'Assignment', dueDateFor: 'choose', badgeClass: 'bg-primary/15 text-primary' },
-  { value: 'midterm', label: 'Midterm Project Brief', badge: 'Midterm', dueDateFor: 'Midterm Presentation', badgeClass: 'bg-amber-500/15 text-amber-600' },
-  { value: 'final', label: 'Final Project Brief', badge: 'Final', dueDateFor: 'Final Project', badgeClass: 'bg-destructive/15 text-destructive' },
+  { value: 'lecture', label: 'Material (weekly lecture files)', badge: 'Material', dueDateFor: null as string | null, badgeClass: 'bg-muted text-foreground' },
+  { value: 'assignment', label: 'Assignment (A1-A3 or extra)', badge: 'Assignment', dueDateFor: 'choose', badgeClass: 'bg-primary/15 text-primary' },
+  { value: 'midterm', label: 'Project - Midterm Brief', badge: 'Midterm', dueDateFor: 'Midterm Presentation', badgeClass: 'bg-amber-500/15 text-amber-600' },
+  { value: 'final', label: 'Project - Final Brief', badge: 'Final', dueDateFor: 'Final Project', badgeClass: 'bg-destructive/15 text-destructive' },
 ];
 
 const ASSIGNMENT_NAMES = ['Assignment 0', 'Assignment 1', 'Assignment 2', 'Assignment 3'];
@@ -661,6 +664,29 @@ export const TeacherMaterialsTab = () => {
           ))}
         </div>
       )}
+
+      {/* Advanced: adjust deadlines and manage extra assignments without re-uploading */}
+      <Collapsible>
+        <Card className="shadow-soft border-0">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between rounded-lg px-4 py-3 text-sm font-medium transition-colors hover:bg-muted/40"
+            >
+              <span className="flex items-center gap-2">
+                <Settings2 className="h-4 w-4 text-primary" />
+                Deadlines & extra assignments (advanced) - adjust due dates without re-uploading
+              </span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="p-4 pt-2">
+              <TeacherDueDatesTab />
+            </div>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
     </div>
   );
 };

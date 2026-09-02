@@ -30,10 +30,10 @@ interface Material {
 
 /** Display order and styling for the categorized list. */
 const CATEGORY_GROUPS = [
-  { value: 'assignment', heading: 'Assignment Instructions', badge: 'Assignment', badgeClass: 'bg-primary/15 text-primary' },
-  { value: 'midterm', heading: 'Midterm Project Brief', badge: 'Midterm', badgeClass: 'bg-amber-500/15 text-amber-600' },
-  { value: 'final', heading: 'Final Project Brief', badge: 'Final', badgeClass: 'bg-destructive/15 text-destructive' },
-  { value: 'lecture', heading: 'Lecture Materials', badge: 'Lecture', badgeClass: 'bg-muted text-foreground' },
+  { value: 'assignment', heading: 'Assignments', badge: 'ASSIGNMENT', badgeClass: 'bg-primary text-primary-foreground' },
+  { value: 'midterm', heading: 'Project - Midterm', badge: 'MIDTERM', badgeClass: 'bg-amber-500 text-white' },
+  { value: 'final', heading: 'Project - Final', badge: 'FINAL', badgeClass: 'bg-destructive text-destructive-foreground' },
+  { value: 'lecture', heading: 'Materials', badge: 'MATERIAL', badgeClass: 'bg-muted-foreground/80 text-background' },
 ];
 
 export const MaterialsSection = () => {
@@ -184,16 +184,18 @@ export const MaterialsSection = () => {
                                   <FileText className="w-4 h-4 text-primary" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-sm truncate">{material.title}</p>
-                                  {material.description && (
-                                    <p className="truncate text-xs text-muted-foreground">{material.description}</p>
-                                  )}
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <Badge className={`border-0 text-[10px] ${group.badgeClass}`}>
+                                  <div className="mb-0.5 flex flex-wrap items-center gap-1.5">
+                                    <Badge className={`border-0 px-2 py-0.5 text-xs font-bold tracking-wide ${group.badgeClass}`}>
                                       {material.assignment_name
-                                        ? material.assignment_name.replace('Midterm Presentation', 'Midterm').replace('Final Project', 'Final')
+                                        ? material.assignment_name.replace('Midterm Presentation', 'MIDTERM').replace('Final Project', 'FINAL').toUpperCase()
                                         : group.badge}
                                     </Badge>
+                                  </div>
+                                  <p className="font-medium text-sm truncate">{material.title}</p>
+                                  {material.description && (
+                                    <p className="text-xs text-muted-foreground">{material.description}</p>
+                                  )}
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                     {(() => {
                                       const due = dueDateFor(material.assignment_name);
                                       if (!due) return null;

@@ -1926,16 +1926,8 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                       className={`gap-2 ${activeTab === 'materials' ? 'bg-primary/10 text-primary font-medium' : ''}`}
                     >
                       <FolderOpen className="w-4 h-4" />
-                      Briefs & Materials
+                      Materials & Assignments
                       {activeTab === 'materials' && <Check className="w-4 h-4 ml-auto" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setActiveTab('duedates')}
-                      className={`gap-2 ${activeTab === 'duedates' ? 'bg-primary/10 text-primary font-medium' : ''}`}
-                    >
-                      <Calendar className="w-4 h-4" />
-                      Assignment
-                      {activeTab === 'duedates' && <Check className="w-4 h-4 ml-auto" />}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => setActiveTab('slots')}
@@ -2106,8 +2098,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
           {activeTab === 'attendance' && 'Attendance'}
           {activeTab === 'assignments' && 'Student Submissions'}
           {activeTab === 'grading' && 'Grading'}
-          {activeTab === 'materials' && 'Briefs & Materials'}
-          {activeTab === 'duedates' && 'Assignment'}
+          {activeTab === 'materials' && 'Materials & Assignments'}
           {activeTab === 'slots' && 'Presentation Slots'}
           {activeTab === 'messages' && 'Messages'}
           {activeTab === 'email' && 'Email'}
