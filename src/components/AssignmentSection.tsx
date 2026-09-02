@@ -47,6 +47,32 @@ export const AssignmentSection = ({ groupId, defaultExpanded = false }: Assignme
   const fileInputRef = useRef<HTMLInputElement>(null);
   const groupFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Teacher-defined extra assignments open for submission.
+  const [customAssignments, setCustomAssignments] = useState<{ name: string; open_date: string | null; due_date: string | null; section: string | null }[]>([]);
+
+  useEffect(() => {
+    if (!currentStudent) return;
+    const fetchCustoms = async () => {
+      const { data } = await supabase.from('custom_assignments').select('*');
+      if (!data) return;
+      const today = new Date().toISOString().slice(0, 10);
+      setCustomAssignments(
+        data.filter((c: { section: string | null; open_date: string | null }) =>
+          (!c.section || c.section === currentStudent.section) &&
+          (!c.open_date || c.open_date <= today)
+        )
+      );
+    };
+    fetchCustoms();
+    const channel = supabase
+      .channel('custom-assignments-student')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'custom_assignments' }, () => fetchCustoms())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentStudent?.id, currentStudent?.section]);
+
   // Link submissions (Google Slides, Canva, etc.)
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
@@ -141,6 +167,16 @@ export const AssignmentSection = ({ groupId, defaultExpanded = false }: Assignme
       setPendingIndividualProject({ file: pendingFile, type: projectType });
       setAssignmentDialogOpen(false);
       setIndividualConfirmOpen(true);
+      return;
+    }
+
+    // Teacher-defined extra assignment: upload with its name as the prefix.
+    if (selectedAssignmentNumber.startsWith('custom:')) {
+      const customName = selectedAssignmentNumber.slice(7);
+      await uploadFile(pendingFile, `${customName} - `, 'individual');
+      setAssignmentDialogOpen(false);
+      setPendingFile(null);
+      setSelectedAssignmentNumber('');
       return;
     }
 
@@ -317,6 +353,9 @@ export const AssignmentSection = ({ groupId, defaultExpanded = false }: Assignme
       if (linkTarget === 'group') {
         prefix = `${linkChoice} - `;
         type = 'group';
+      } else if (linkChoice.startsWith('custom:')) {
+        prefix = `${linkChoice.slice(7)} - `;
+        type = 'individual';
       } else if (linkChoice === 'Midterm' || linkChoice === 'Final') {
         prefix = `${linkChoice === 'Midterm' ? 'Midterm Presentation' : 'Final Project'} (Individual) - `;
         type = 'individual';
@@ -658,6 +697,9 @@ export const AssignmentSection = ({ groupId, defaultExpanded = false }: Assignme
                         <SelectItem value="3">Assignment 3</SelectItem>
                         <SelectItem value="Midterm">Midterm Presentation (Individual)</SelectItem>
                         <SelectItem value="Final">Final Project (Individual)</SelectItem>
+                        {customAssignments.map(c => (
+                          <SelectItem key={c.name} value={`custom:${c.name}`}>{c.name}</SelectItem>
+                        ))}
                       </>
                     )}
                   </SelectContent>
@@ -709,6 +751,9 @@ export const AssignmentSection = ({ groupId, defaultExpanded = false }: Assignme
                     <SelectItem value="3">Assignment 3</SelectItem>
                     <SelectItem value="Midterm">Midterm Presentation (Individual)</SelectItem>
                     <SelectItem value="Final">Final Project (Individual)</SelectItem>
+                    {customAssignments.map(c => (
+                      <SelectItem key={c.name} value={`custom:${c.name}`}>{c.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

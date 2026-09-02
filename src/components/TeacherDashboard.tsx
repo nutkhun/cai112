@@ -157,6 +157,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
   const { groups, students, getStudentById, joinGroup, leaveGroup, setGroupLeader, refetchData } = useGroups();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [dueDatesList, setDueDatesList] = useState<{ assignment_name: string; due_date: string; section: string | null }[]>([]);
+  const [customAssignments, setCustomAssignments] = useState<{ name: string; max_score: number }[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('students');
 
@@ -447,6 +448,8 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
     if (!error && data) {
       setDueDatesList(data as { assignment_name: string; due_date: string; section: string | null }[]);
     }
+    const { data: customs } = await supabase.from('custom_assignments').select('*');
+    if (customs) setCustomAssignments(customs as { name: string; max_score: number }[]);
   };
 
   const fetchAllGrades = async () => {
@@ -1471,6 +1474,8 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
     if (fileName.startsWith('Participation')) return { name: 'Participation', max: 10, rubric: false };
     if (fileName.startsWith('Midterm Presentation')) return { name: 'Midterm Presentation', max: 30, rubric: true };
     if (fileName.startsWith('Final Project')) return { name: 'Final Project', max: 40, rubric: true };
+    const custom = customAssignments.find(c => fileName.startsWith(c.name));
+    if (custom) return { name: custom.name, max: custom.max_score, rubric: false };
     return null;
   };
 
@@ -2583,6 +2588,9 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                       <SelectItem value="Participation">Participation</SelectItem>
                       <SelectItem value="Midterm Presentation">Midterm Presentation</SelectItem>
                       <SelectItem value="Final Project">Final Project</SelectItem>
+                      {customAssignments.map(c => (
+                        <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
 

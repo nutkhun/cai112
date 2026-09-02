@@ -45,10 +45,83 @@ const ASSIGNMENT_OPTIONS = [
 ];
 
 
+interface CustomAssignment {
+  id: string;
+  name: string;
+  max_score: number;
+  open_date: string | null;
+  due_date: string | null;
+  section: string | null;
+}
+
 export const TeacherDueDatesTab = () => {
   const [dueDates, setDueDates] = useState<DueDate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [customs, setCustoms] = useState<CustomAssignment[]>([]);
+  const [caName, setCaName] = useState('');
+  const [caMax, setCaMax] = useState('10');
+  const [caOpen, setCaOpen] = useState('');
+  const [caDue, setCaDue] = useState('');
+  const [caSection, setCaSection] = useState('all');
+  const [caSaving, setCaSaving] = useState(false);
+
+  const fetchCustoms = async () => {
+    const { data } = await supabase.from('custom_assignments').select('*').order('created_at', { ascending: true });
+    if (data) setCustoms(data as CustomAssignment[]);
+  };
+
+  const addCustomAssignment = async () => {
+    const name = caName.trim();
+    if (!name) { toast.error('Please name the assignment'); return; }
+    if (ASSIGNMENT_OPTIONS.some(o => o.name.toLowerCase() === name.toLowerCase()) ||
+        customs.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+      toast.error('An assignment with this name already exists');
+      return;
+    }
+    if (!caDue) { toast.error('Please set a due date'); return; }
+    const max = parseFloat(caMax);
+    if (isNaN(max) || max <= 0) { toast.error('Max score must be a positive number'); return; }
+
+    setCaSaving(true);
+    const section = caSection === 'all' ? null : caSection;
+    const { error } = await supabase.from('custom_assignments').insert({
+      id: crypto.randomUUID(),
+      name,
+      max_score: max,
+      open_date: caOpen || null,
+      due_date: caDue,
+      section,
+    });
+    if (error) {
+      toast.error('Failed to create assignment');
+    } else {
+      // Register the deadline so warnings, popups, and late tracking apply.
+      await supabase.from('assignment_due_dates').insert({
+        assignment_name: name,
+        assignment_type: 'individual',
+        due_date: caDue,
+        section,
+      });
+      toast.success(`"${name}" created - students can submit it like any assignment`);
+      setCaName(''); setCaMax('10'); setCaOpen(''); setCaDue(''); setCaSection('all');
+      fetchCustoms();
+      fetchDueDates();
+    }
+    setCaSaving(false);
+  };
+
+  const deleteCustomAssignment = async (ca: CustomAssignment) => {
+    await supabase.from('custom_assignments').delete().eq('id', ca.id);
+    // Remove its registered deadline too.
+    const { data: dd } = await supabase.from('assignment_due_dates').select('*').eq('assignment_name', ca.name);
+    for (const row of (dd || [])) {
+      await supabase.from('assignment_due_dates').delete().eq('id', row.id);
+    }
+    toast.success(`"${ca.name}" removed`);
+    fetchCustoms();
+    fetchDueDates();
+  };
 
   // New due date form state
   const [selectedAssignment, setSelectedAssignment] = useState<string>('');
@@ -71,6 +144,7 @@ export const TeacherDueDatesTab = () => {
 
   useEffect(() => {
     fetchDueDates();
+    fetchCustoms();
 
     // Real-time subscription
     const channel = supabase
@@ -185,6 +259,79 @@ export const TeacherDueDatesTab = () => {
 
   return (
     <div className="space-y-6">
+      {/* Extra Assignments */}
+      <Card className="shadow-soft border-0">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg font-display">
+            <Plus className="w-5 h-5 text-primary" />
+            Extra Assignments
+            <Badge variant="secondary" className="ml-1">{customs.length}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-6">
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Assignment name</Label>
+              <Input value={caName} onChange={(e) => setCaName(e.target.value)} placeholder="e.g. Assignment 4" />
+            </div>
+            <div className="space-y-2">
+              <Label>Max score</Label>
+              <Input type="number" min="1" step="0.5" value={caMax} onChange={(e) => setCaMax(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Opens (optional)</Label>
+              <Input type="date" value={caOpen} onChange={(e) => setCaOpen(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Due date</Label>
+              <Input type="date" value={caDue} onChange={(e) => setCaDue(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Section</Label>
+              <Select value={caSection} onValueChange={setCaSection}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sections</SelectItem>
+                  {SECTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <Button onClick={addCustomAssignment} disabled={caSaving || !caName.trim() || !caDue} className="gap-2">
+            <Plus className="w-4 h-4" />
+            {caSaving ? 'Creating...' : 'Create Assignment'}
+          </Button>
+          {customs.length > 0 && (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {customs.map(ca => (
+                <div key={ca.id} className="flex items-center justify-between gap-2 rounded-lg border bg-muted/30 p-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{ca.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Max {ca.max_score} · {ca.open_date ? `${format(new Date(ca.open_date), 'MMM d')} - ` : 'due '}
+                      {ca.due_date ? format(new Date(ca.due_date), 'MMM d, yyyy') : 'no deadline'} · {ca.section || 'All sections'}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 shrink-0 p-0 text-destructive hover:text-destructive"
+                    onClick={() => deleteCustomAssignment(ca)}
+                    title="Remove this assignment and its deadline"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Students submit these exactly like A1-A3 (file or link) from the assignment picker.
+            Deadline warnings and the late-deduction hints apply automatically.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Add Due Date Card */}
       <Card className="shadow-soft border-0">
         <CardHeader>
@@ -202,7 +349,7 @@ export const TeacherDueDatesTab = () => {
                   <SelectValue placeholder="Select assignment" />
                 </SelectTrigger>
                 <SelectContent>
-                  {ASSIGNMENT_OPTIONS.map((option) => (
+                  {[...ASSIGNMENT_OPTIONS, ...customs.map(c => ({ name: c.name, type: 'individual' }))].map((option) => (
                     <SelectItem key={option.name} value={option.name}>
                       {option.name}
                       <span className="ml-2 text-xs text-muted-foreground">
