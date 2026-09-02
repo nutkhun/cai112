@@ -1934,7 +1934,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                       className={`gap-2 ${activeTab === 'duedates' ? 'bg-primary/10 text-primary font-medium' : ''}`}
                     >
                       <Calendar className="w-4 h-4" />
-                      Due Dates
+                      Assignment
                       {activeTab === 'duedates' && <Check className="w-4 h-4 ml-auto" />}
                     </DropdownMenuItem>
                     <DropdownMenuItem
@@ -2107,7 +2107,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
           {activeTab === 'assignments' && 'Student Submissions'}
           {activeTab === 'grading' && 'Grading'}
           {activeTab === 'materials' && 'Briefs & Materials'}
-          {activeTab === 'duedates' && 'Due Dates'}
+          {activeTab === 'duedates' && 'Assignment'}
           {activeTab === 'slots' && 'Presentation Slots'}
           {activeTab === 'messages' && 'Messages'}
           {activeTab === 'email' && 'Email'}
