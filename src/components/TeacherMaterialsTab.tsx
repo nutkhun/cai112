@@ -57,6 +57,7 @@ export const MATERIAL_CATEGORIES = [
 ];
 
 const ASSIGNMENT_NAMES = ['Assignment 0', 'Assignment 1', 'Assignment 2', 'Assignment 3'];
+const NEW_ASSIGNMENT = '__new__';
 
 export const TeacherMaterialsTab = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -76,6 +77,14 @@ export const TeacherMaterialsTab = () => {
   const [category, setCategory] = useState<string>('lecture');
   const [linkedAssignment, setLinkedAssignment] = useState<string>('');
   const [dueDate, setDueDate] = useState<string>('');
+  const [customs, setCustoms] = useState<{ name: string; max_score: number }[]>([]);
+  const [newAssignmentName, setNewAssignmentName] = useState('');
+  const [newAssignmentMax, setNewAssignmentMax] = useState('10');
+
+  const fetchCustoms = async () => {
+    const { data } = await supabase.from('custom_assignments').select('*');
+    if (data) setCustoms(data as { name: string; max_score: number }[]);
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -106,6 +115,7 @@ export const TeacherMaterialsTab = () => {
   useEffect(() => {
     fetchMaterials();
     fetchAllDueDates();
+    fetchCustoms();
 
     const channel = supabase
       .channel('teacher-materials-live')
@@ -157,6 +167,39 @@ export const TeacherMaterialsTab = () => {
       return;
     }
 
+    // Creating a brand-new assignment straight from this dialog.
+    let effectiveAssignment = linkedAssignment;
+    if (category === 'assignment' && linkedAssignment === NEW_ASSIGNMENT) {
+      const name = newAssignmentName.trim();
+      if (!name) {
+        toast.error('Please name the new assignment');
+        return;
+      }
+      if ([...ASSIGNMENT_NAMES, 'Midterm Presentation', 'Final Project'].some(n => n.toLowerCase() === name.toLowerCase()) ||
+          customs.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+        toast.error('An assignment with this name already exists');
+        return;
+      }
+      const max = parseFloat(newAssignmentMax);
+      if (isNaN(max) || max <= 0) {
+        toast.error('Max score must be a positive number');
+        return;
+      }
+      const { error: caError } = await supabase.from('custom_assignments').insert({
+        id: crypto.randomUUID(),
+        name,
+        max_score: max,
+        open_date: null,
+        due_date: dueDate || null,
+        section: targetSection === 'all' ? null : targetSection,
+      });
+      if (caError) {
+        toast.error('Failed to create the new assignment');
+        return;
+      }
+      effectiveAssignment = name;
+    }
+
     setUploading(true);
 
     try {
@@ -183,7 +226,7 @@ export const TeacherMaterialsTab = () => {
           section: targetSection === 'all' ? null : targetSection,
           category,
           assignment_name:
-            category === 'assignment' ? linkedAssignment || null :
+            category === 'assignment' ? effectiveAssignment || null :
             category === 'midterm' ? 'Midterm Presentation' :
             category === 'final' ? 'Final Project' : null
         });
@@ -192,7 +235,7 @@ export const TeacherMaterialsTab = () => {
 
       // Assignment-like uploads can set their due date in the same step.
       const catDef = MATERIAL_CATEGORIES.find(c => c.value === category);
-      const dueAssignment = catDef?.dueDateFor === 'choose' ? linkedAssignment : catDef?.dueDateFor;
+      const dueAssignment = catDef?.dueDateFor === 'choose' ? effectiveAssignment : catDef?.dueDateFor;
       if (dueAssignment && dueDate) {
         const section = targetSection === 'all' ? null : targetSection;
         const { data: existing } = await supabase
@@ -222,6 +265,7 @@ export const TeacherMaterialsTab = () => {
       resetUploadForm();
       fetchMaterials();
       fetchAllDueDates();
+      fetchCustoms();
     } catch (error: any) {
       toast.error(`Upload failed: ${error.message}`);
     }
@@ -237,6 +281,8 @@ export const TeacherMaterialsTab = () => {
     setCategory('lecture');
     setLinkedAssignment('');
     setDueDate('');
+    setNewAssignmentName('');
+    setNewAssignmentMax('10');
   };
 
   const handleDownload = async (material: Material) => {
@@ -389,8 +435,33 @@ export const TeacherMaterialsTab = () => {
                           {ASSIGNMENT_NAMES.map(name => (
                             <SelectItem key={name} value={name}>{name}</SelectItem>
                           ))}
+                          {customs.map(c => (
+                            <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
+                          ))}
+                          <SelectItem value={NEW_ASSIGNMENT}>+ Create a new assignment...</SelectItem>
                         </SelectContent>
                       </Select>
+                      {linkedAssignment === NEW_ASSIGNMENT && (
+                        <div className="grid grid-cols-[1fr_110px] gap-2 rounded-lg border bg-muted/30 p-2">
+                          <Input
+                            placeholder="New assignment name, e.g. Assignment 4"
+                            value={newAssignmentName}
+                            onChange={(e) => setNewAssignmentName(e.target.value)}
+                          />
+                          <Input
+                            type="number"
+                            min="1"
+                            step="0.5"
+                            value={newAssignmentMax}
+                            onChange={(e) => setNewAssignmentMax(e.target.value)}
+                            title="Max score"
+                            placeholder="Max"
+                          />
+                          <p className="col-span-2 text-xs text-muted-foreground">
+                            Created on upload - students can then submit it like A1-A3, and you grade it out of this max score.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -481,7 +552,7 @@ export const TeacherMaterialsTab = () => {
 
                   <Button 
                     onClick={handleUpload} 
-                    disabled={uploading || !title.trim() || !selectedFile || (category === 'assignment' && !linkedAssignment)}
+                    disabled={uploading || !title.trim() || !selectedFile || (category === 'assignment' && (!linkedAssignment || (linkedAssignment === NEW_ASSIGNMENT && !newAssignmentName.trim())))}
                     className="w-full gap-2"
                   >
                     <Upload className="w-4 h-4" />
