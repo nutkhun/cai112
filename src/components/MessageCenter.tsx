@@ -383,7 +383,10 @@ export const MessageCenter = ({ defaultExpanded = false }: MessageCenterProps) =
                                 className="gap-1 h-10 md:h-7 text-xs"
                                 onClick={() => {
                                   const subj = email.subject ? (email.subject.startsWith('Re:') ? email.subject : `Re: ${email.subject}`) : '';
-                                  window.open(`mailto:${TEACHER_EMAIL}?subject=${encodeURIComponent(subj)}`, '_blank');
+                                  // Anchor click instead of window.open: avoids leaving a blank tab.
+                                  const a = document.createElement('a');
+                                  a.href = `mailto:${TEACHER_EMAIL}?subject=${encodeURIComponent(subj)}`;
+                                  a.click();
                                 }}
                               >
                                 <Reply className="w-3 h-3" />

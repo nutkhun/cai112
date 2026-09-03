@@ -130,6 +130,17 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
     return s.name.toLowerCase().includes(q) || s.student_id.includes(q) || (s.email || '').toLowerCase().includes(q);
   });
 
+  // Trigger the mail app without window.open: a synthetic anchor click keeps
+  // the dashboard on screen instead of leaving a blank tab behind.
+  const openMailto = (url: string) => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   const handleSendBulk = async () => {
     const recipients = composeCandidates.map(s => s.email!).filter(Boolean);
     if (recipients.length === 0) {
@@ -140,7 +151,15 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
     // case the mail app truncates a very long mailto URL.
     try { await navigator.clipboard.writeText(recipients.join(', ')); } catch {}
     const mailto = `mailto:?bcc=${encodeURIComponent(recipients.join(','))}&subject=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`;
-    window.open(mailto, '_blank');
+    if (mailto.length > 1800) {
+      // Too long for many mail handlers - open without recipients and let the
+      // teacher paste the copied list into BCC.
+      openMailto(`mailto:?subject=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`);
+      toast.success(`${recipients.length} addresses copied to your clipboard - paste them into the BCC field of the draft that just opened`, { duration: 10000 });
+    } else {
+      openMailto(mailto);
+      toast.success(`Draft to ${recipients.length} students opened (BCC) - addresses also copied as backup`);
+    }
 
     await supabase.from('emails').insert({
       id: crypto.randomUUID(),
@@ -152,7 +171,6 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
       student_id: null,
       is_read: 1,
     });
-    toast.success(`Draft to ${recipients.length} students opened in your mail app - addresses also copied to clipboard`);
     setComposeOpen(false);
     fetchAll();
   };
@@ -173,7 +191,7 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
     if (recipients.length > 1) {
       try { await navigator.clipboard.writeText(recipients.join(', ')); } catch {}
     }
-    window.open(mailto, '_blank');
+    openMailto(mailto);
 
     // Keep copies in Sent - one per student so each sees it in their inbox view.
     const rows = recipients.map(addr => {
