@@ -141,38 +141,19 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
     document.body.removeChild(a);
   };
 
-  const handleSendBulk = async () => {
-    const recipients = composeCandidates.map(s => s.email!).filter(Boolean);
-    if (recipients.length === 0) {
-      toast.error('No students match the current filter');
-      return;
-    }
-    // BCC so students never see each other's addresses. Clipboard backup in
-    // case the mail app truncates a very long mailto URL.
-    try { await navigator.clipboard.writeText(recipients.join(', ')); } catch {}
-    const mailto = `mailto:?bcc=${encodeURIComponent(recipients.join(','))}&subject=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`;
-    if (mailto.length > 1800) {
-      // Too long for many mail handlers - open without recipients and let the
-      // teacher paste the copied list into BCC.
-      openMailto(`mailto:?subject=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`);
-      toast.success(`${recipients.length} addresses copied to your clipboard - paste them into the BCC field of the draft that just opened`, { duration: 10000 });
-    } else {
-      openMailto(mailto);
-      toast.success(`Draft to ${recipients.length} students opened (BCC) - addresses also copied as backup`);
-    }
+  const allShownSelected = composeCandidates.length > 0 &&
+    composeCandidates.every(s => composeSelected[s.id]);
 
-    await supabase.from('emails').insert({
-      id: crypto.randomUUID(),
-      direction: 'out',
-      from_addr: 'nattadej_p@bu.ac.th',
-      to_addr: `BCC: ${recipients.length} students (${composeSection === 'all' ? 'all sections' : composeSection}${composeSearch.trim() ? ', filtered' : ''})`,
-      subject: composeSubject || null,
-      body: composeBody || null,
-      student_id: null,
-      is_read: 1,
-    });
-    setComposeOpen(false);
-    fetchAll();
+  const toggleSelectAll = () => {
+    if (allShownSelected) {
+      setComposeSelected({});
+      setComposeTo('');
+    } else {
+      const next: Record<string, string> = {};
+      composeCandidates.forEach(s => { next[s.id] = s.email!; });
+      setComposeSelected(next);
+      setComposeTo(`All ${composeCandidates.length} students shown`);
+    }
   };
 
   const handleSend = async () => {
@@ -184,14 +165,16 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
       toast.error('Pick one or more students, or enter an email address');
       return;
     }
-    // One recipient goes in To; several go in BCC so addresses stay private.
-    const mailto = recipients.length === 1
-      ? `mailto:${encodeURIComponent(recipients[0])}?subject=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`
-      : `mailto:?bcc=${encodeURIComponent(recipients.join(','))}&subject=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`;
-    if (recipients.length > 1) {
+    // One recipient: the mail app via mailto. Several: Gmail's web composer,
+    // which happily accepts a long pre-filled BCC list where mailto cannot -
+    // recipients are in BCC so students never see each other's addresses.
+    if (recipients.length === 1) {
+      openMailto(`mailto:${encodeURIComponent(recipients[0])}?subject=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`);
+    } else {
       try { await navigator.clipboard.writeText(recipients.join(', ')); } catch {}
+      const gmail = `https://mail.google.com/mail/?view=cm&fs=1&bcc=${encodeURIComponent(recipients.join(','))}&su=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`;
+      window.open(gmail, '_blank', 'noopener');
     }
-    openMailto(mailto);
 
     // Keep copies in Sent - one per student so each sees it in their inbox view.
     const rows = recipients.map(addr => {
@@ -211,7 +194,7 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
     toast.success(
       recipients.length === 1
         ? 'Draft opened in your mail app - a copy was saved to Sent'
-        : `Draft to ${recipients.length} students opened (BCC) - addresses copied as backup`
+        : `Gmail opened with all ${recipients.length} students in BCC - just hit Send`
     );
     setComposeOpen(false);
     fetchAll();
@@ -403,16 +386,23 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
                     ? `${Object.keys(composeSelected).length} selected of ${composeCandidates.length} shown · tap to toggle`
                     : `${composeCandidates.length} student${composeCandidates.length === 1 ? '' : 's'} shown · tap to select one or more`}
                 </p>
-                <div className="flex gap-2">
-                  {Object.keys(composeSelected).length > 0 && (
+                <div className="flex items-center gap-2">
+                  {Object.keys(composeSelected).length > 0 && !allShownSelected && (
                     <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setComposeSelected({}); setComposeTo(''); }}>
                       Clear
                     </Button>
                   )}
-                  <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={handleSendBulk}>
+                  <button
+                    type="button"
+                    onClick={toggleSelectAll}
+                    className="flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-muted/50"
+                  >
+                    <span className={`flex h-4 w-4 items-center justify-center rounded border ${allShownSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'}`}>
+                      {allShownSelected && <Check className="h-3 w-3" />}
+                    </span>
                     <Users2 className="h-3.5 w-3.5" />
                     Email all {composeCandidates.length} shown
-                  </Button>
+                  </button>
                 </div>
               </div>
             </div>
