@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Mail, Send, RefreshCw, Reply, Inbox, PenLine, ExternalLink } from 'lucide-react';
+import { Mail, Send, RefreshCw, Reply, Inbox, PenLine, ExternalLink, Check, Users2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface EmailRow {
@@ -59,6 +59,7 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
   // Compose state
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeStudentId, setComposeStudentId] = useState('');
+  const [composeSelected, setComposeSelected] = useState<Record<string, string>>({});
   const [composeTo, setComposeTo] = useState('');
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
@@ -112,6 +113,7 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
 
   const startCompose = (student?: StudentLite, replyTo?: EmailRow) => {
     setComposeStudentId(student?.id || '');
+    setComposeSelected(student?.email ? { [student.id]: student.email } : {});
     setComposeTo(student?.email || replyTo?.from_addr || '');
     setComposeSubject(replyTo?.subject ? (replyTo.subject.startsWith('Re:') ? replyTo.subject : `Re: ${replyTo.subject}`) : '');
     setComposeBody('');
@@ -128,30 +130,71 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
     return s.name.toLowerCase().includes(q) || s.student_id.includes(q) || (s.email || '').toLowerCase().includes(q);
   });
 
-  const handleSend = async () => {
-    const to = composeTo.trim();
-    if (!to.includes('@')) {
-      toast.error('Please choose a student or enter a valid email address');
+  const handleSendBulk = async () => {
+    const recipients = composeCandidates.map(s => s.email!).filter(Boolean);
+    if (recipients.length === 0) {
+      toast.error('No students match the current filter');
       return;
     }
-    // Open the teacher's own mail app with everything pre-filled - mail is
-    // actually sent from nattadej_p@bu.ac.th, so students recognize the sender.
-    const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`;
+    // BCC so students never see each other's addresses. Clipboard backup in
+    // case the mail app truncates a very long mailto URL.
+    try { await navigator.clipboard.writeText(recipients.join(', ')); } catch {}
+    const mailto = `mailto:?bcc=${encodeURIComponent(recipients.join(','))}&subject=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`;
     window.open(mailto, '_blank');
 
-    // Keep a copy in the dashboard's Sent list.
-    const student = students.find(s => s.email?.toLowerCase() === to.toLowerCase());
     await supabase.from('emails').insert({
       id: crypto.randomUUID(),
       direction: 'out',
       from_addr: 'nattadej_p@bu.ac.th',
-      to_addr: to,
+      to_addr: `BCC: ${recipients.length} students (${composeSection === 'all' ? 'all sections' : composeSection}${composeSearch.trim() ? ', filtered' : ''})`,
       subject: composeSubject || null,
       body: composeBody || null,
-      student_id: student?.id || null,
+      student_id: null,
       is_read: 1,
     });
-    toast.success('Draft opened in your mail app - a copy was saved to Sent');
+    toast.success(`Draft to ${recipients.length} students opened in your mail app - addresses also copied to clipboard`);
+    setComposeOpen(false);
+    fetchAll();
+  };
+
+  const handleSend = async () => {
+    const selected = Object.entries(composeSelected);
+    const recipients = selected.length > 0
+      ? selected.map(([, email]) => email)
+      : composeTo.split(/[,;\s]+/).map(t => t.trim()).filter(t => t.includes('@'));
+    if (recipients.length === 0) {
+      toast.error('Pick one or more students, or enter an email address');
+      return;
+    }
+    // One recipient goes in To; several go in BCC so addresses stay private.
+    const mailto = recipients.length === 1
+      ? `mailto:${encodeURIComponent(recipients[0])}?subject=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`
+      : `mailto:?bcc=${encodeURIComponent(recipients.join(','))}&subject=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`;
+    if (recipients.length > 1) {
+      try { await navigator.clipboard.writeText(recipients.join(', ')); } catch {}
+    }
+    window.open(mailto, '_blank');
+
+    // Keep copies in Sent - one per student so each sees it in their inbox view.
+    const rows = recipients.map(addr => {
+      const student = students.find(s => s.email?.toLowerCase() === addr.toLowerCase());
+      return {
+        id: crypto.randomUUID(),
+        direction: 'out',
+        from_addr: 'nattadej_p@bu.ac.th',
+        to_addr: addr,
+        subject: composeSubject || null,
+        body: composeBody || null,
+        student_id: student?.id || null,
+        is_read: 1,
+      };
+    });
+    await supabase.from('emails').insert(rows);
+    toast.success(
+      recipients.length === 1
+        ? 'Draft opened in your mail app - a copy was saved to Sent'
+        : `Draft to ${recipients.length} students opened (BCC) - addresses copied as backup`
+    );
     setComposeOpen(false);
     fetchAll();
   };
@@ -304,25 +347,56 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
                 {composeCandidates.length === 0 ? (
                   <p className="p-3 text-center text-sm text-muted-foreground">No students match</p>
                 ) : (
-                  composeCandidates.map(s => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => { setComposeStudentId(s.id); setComposeTo(s.email!); }}
-                      className={`flex w-full items-center justify-between gap-2 border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted/50 ${
-                        composeStudentId === s.id ? 'bg-primary/10' : ''
-                      }`}
-                    >
-                      <span className="min-w-0 truncate font-medium">{s.name}</span>
-                      <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-                        <Badge variant="secondary" className="text-[10px]">{s.section}</Badge>
-                        {s.email}
-                      </span>
-                    </button>
-                  ))
+                  composeCandidates.map(s => {
+                    const checked = !!composeSelected[s.id];
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => {
+                          setComposeSelected(prev => {
+                            const next = { ...prev };
+                            if (next[s.id]) delete next[s.id];
+                            else next[s.id] = s.email!;
+                            setComposeTo(Object.values(next).join(', '));
+                            return next;
+                          });
+                        }}
+                        className={`flex w-full items-center gap-2 border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted/50 ${
+                          checked ? 'bg-primary/10' : ''
+                        }`}
+                      >
+                        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'}`}>
+                          {checked && <Check className="h-3 w-3" />}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate font-medium">{s.name}</span>
+                        <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                          <Badge variant="secondary" className="text-[10px]">{s.section}</Badge>
+                          {s.email}
+                        </span>
+                      </button>
+                    );
+                  })
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">{composeCandidates.length} student{composeCandidates.length === 1 ? '' : 's'} shown · click one to fill the To field</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  {Object.keys(composeSelected).length > 0
+                    ? `${Object.keys(composeSelected).length} selected of ${composeCandidates.length} shown · tap to toggle`
+                    : `${composeCandidates.length} student${composeCandidates.length === 1 ? '' : 's'} shown · tap to select one or more`}
+                </p>
+                <div className="flex gap-2">
+                  {Object.keys(composeSelected).length > 0 && (
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setComposeSelected({}); setComposeTo(''); }}>
+                      Clear
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={handleSendBulk}>
+                    <Users2 className="h-3.5 w-3.5" />
+                    Email all {composeCandidates.length} shown
+                  </Button>
+                </div>
+              </div>
             </div>
             <div className="space-y-2">
               <Label>To</Label>
