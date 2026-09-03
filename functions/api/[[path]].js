@@ -226,6 +226,49 @@ async function handleChanges(url, env) {
   return json({ last: last, changes: changes });
 }
 
+// Sends email through Resend from cai112@bu-sms.site. Recipients go in BCC
+// (chunked to stay under Resend's 50-address cap) so students never see each
+// other's addresses; replies land at the teacher's BU inbox via Reply-To.
+async function handleSendEmail(request, env) {
+  if (!env.RESEND_API_KEY) return json({ error: 'Email sending is not configured' }, 500);
+  let body;
+  try { body = await request.json(); } catch (err) { return json({ error: 'Invalid JSON body' }, 400); }
+  const recipients = (Array.isArray(body.to) ? body.to : [])
+    .map(function (a) { return String(a || '').trim(); })
+    .filter(function (a) { return a.indexOf('@') > 0 && a.length <= 254; });
+  if (recipients.length === 0) return json({ error: 'No valid recipients' }, 400);
+  if (recipients.length > 500) return json({ error: 'Too many recipients' }, 400);
+  const subject = String(body.subject || '(no subject)').slice(0, 500);
+  const text = String(body.body || '');
+
+  const chunks = [];
+  for (let i = 0; i < recipients.length; i += 45) chunks.push(recipients.slice(i, i + 45));
+  let sentCount = 0;
+  for (const chunk of chunks) {
+    const single = chunk.length === 1;
+    const payload = {
+      from: 'CAI112 <cai112@bu-sms.site>',
+      to: single ? chunk : ['cai112@bu-sms.site'],
+      reply_to: 'nattadej_p@bu.ac.th',
+      subject: subject,
+      text: text
+    };
+    if (!single) payload.bcc = chunk;
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + env.RESEND_API_KEY },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      let detail = '';
+      try { detail = ((await response.json()) || {}).message || ''; } catch (err) { /* keep empty */ }
+      return json({ error: 'Email service error: ' + (detail || response.status), sent: sentCount }, 502);
+    }
+    sentCount += chunk.length;
+  }
+  return json({ data: { sent: sentCount } });
+}
+
 async function handleStorage(request, env, segments) {
   const bucket = segments[0];
   const key = segments.slice(1).join('/');
@@ -272,6 +315,10 @@ export async function onRequest(context) {
     return handleDb(request, env);
   }
   if (route === 'changes') return handleChanges(url, env);
+  if (route === 'send-email') {
+    if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+    return handleSendEmail(request, env);
+  }
   if (route === 'storage') return handleStorage(request, env, segments.slice(2));
   if (route === 'health') return json({ ok: true });
   return json({ error: 'Not found' }, 404);

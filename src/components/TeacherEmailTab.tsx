@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Mail, Send, RefreshCw, Reply, Inbox, PenLine, ExternalLink, Check, Users2 } from 'lucide-react';
+import { Mail, Send, RefreshCw, Reply, Inbox, PenLine, Check, Users2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface EmailRow {
@@ -130,17 +130,6 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
     return s.name.toLowerCase().includes(q) || s.student_id.includes(q) || (s.email || '').toLowerCase().includes(q);
   });
 
-  // Trigger the mail app without window.open: a synthetic anchor click keeps
-  // the dashboard on screen instead of leaving a blank tab behind.
-  const openMailto = (url: string) => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
-
   const allShownSelected = composeCandidates.length > 0 &&
     composeCandidates.every(s => composeSelected[s.id]);
 
@@ -156,48 +145,57 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
     }
   };
 
+  const [sending, setSending] = useState(false);
+
   const handleSend = async () => {
-    const selected = Object.entries(composeSelected);
-    const recipients = selected.length > 0
-      ? selected.map(([, email]) => email)
+    const chosen = Object.entries(composeSelected);
+    const recipients = chosen.length > 0
+      ? chosen.map(([, email]) => email)
       : composeTo.split(/[,;\s]+/).map(t => t.trim()).filter(t => t.includes('@'));
     if (recipients.length === 0) {
       toast.error('Pick one or more students, or enter an email address');
       return;
     }
-    // One recipient: the mail app via mailto. Several: Gmail's web composer,
-    // which happily accepts a long pre-filled BCC list where mailto cannot -
-    // recipients are in BCC so students never see each other's addresses.
-    if (recipients.length === 1) {
-      openMailto(`mailto:${encodeURIComponent(recipients[0])}?subject=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`);
-    } else {
-      try { await navigator.clipboard.writeText(recipients.join(', ')); } catch {}
-      const gmail = `https://mail.google.com/mail/?view=cm&fs=1&bcc=${encodeURIComponent(recipients.join(','))}&su=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`;
-      window.open(gmail, '_blank', 'noopener');
-    }
+    setSending(true);
+    try {
+      // The app sends the email itself: recipients stay in BCC on the server
+      // and replies go to nattadej_p@bu.ac.th via Reply-To.
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ to: recipients, subject: composeSubject, body: composeBody }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        toast.error(result?.error || 'Sending failed - please try again');
+        return;
+      }
 
-    // Keep copies in Sent - one per student so each sees it in their inbox view.
-    const rows = recipients.map(addr => {
-      const student = students.find(s => s.email?.toLowerCase() === addr.toLowerCase());
-      return {
-        id: crypto.randomUUID(),
-        direction: 'out',
-        from_addr: 'nattadej_p@bu.ac.th',
-        to_addr: addr,
-        subject: composeSubject || null,
-        body: composeBody || null,
-        student_id: student?.id || null,
-        is_read: 1,
-      };
-    });
-    await supabase.from('emails').insert(rows);
-    toast.success(
-      recipients.length === 1
-        ? 'Draft opened in your mail app - a copy was saved to Sent'
-        : `Gmail opened with all ${recipients.length} students in BCC - just hit Send`
-    );
-    setComposeOpen(false);
-    fetchAll();
+      // Keep copies in Sent - one per student so each sees it in their inbox view.
+      const rows = recipients.map(addr => {
+        const student = students.find(s => s.email?.toLowerCase() === addr.toLowerCase());
+        return {
+          id: crypto.randomUUID(),
+          direction: 'out',
+          from_addr: 'cai112@bu-sms.site',
+          to_addr: addr,
+          subject: composeSubject || null,
+          body: composeBody || null,
+          student_id: student?.id || null,
+          is_read: 1,
+        };
+      });
+      await supabase.from('emails').insert(rows);
+      toast.success(
+        recipients.length === 1
+          ? 'Email sent - a copy was saved to Sent'
+          : `Email sent to all ${recipients.length} students`
+      );
+      setComposeOpen(false);
+      fetchAll();
+    } finally {
+      setSending(false);
+    }
   };
 
   const inbox = emails.filter(e => e.direction === 'in');
@@ -419,15 +417,15 @@ export const TeacherEmailTab = ({ onUnreadCountChange }: TeacherEmailTabProps) =
               <Textarea value={composeBody} onChange={(e) => setComposeBody(e.target.value)} rows={7} placeholder="Write your message..." />
             </div>
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <ExternalLink className="h-3.5 w-3.5" />
-              Send opens the message in your mail app from nattadej_p@bu.ac.th; a copy is kept in Sent here.
+              <Mail className="h-3.5 w-3.5" />
+              Sent right from the app as cai112@bu-sms.site - replies go to nattadej_p@bu.ac.th and a copy is kept in Sent here.
             </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setComposeOpen(false)}>Cancel</Button>
-            <Button onClick={handleSend} className="gap-2">
-              <Send className="h-4 w-4" />
-              Send
+            <Button onClick={handleSend} disabled={sending} className="gap-2">
+              <Send className={`h-4 w-4 ${sending ? 'animate-pulse' : ''}`} />
+              {sending ? 'Sending...' : 'Send'}
             </Button>
           </DialogFooter>
         </DialogContent>

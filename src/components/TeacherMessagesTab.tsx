@@ -74,6 +74,7 @@ export const TeacherMessagesTab = () => {
   const [messageContent, setMessageContent] = useState('');
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<TeacherMessage | null>(null);
+  const [alsoEmail, setAlsoEmail] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -145,6 +146,44 @@ export const TeacherMessagesTab = () => {
     return students.find(s => s.id === id);
   };
 
+  // Mirrors the in-app message to the recipients' real inboxes through the
+  // app's own sender (cai112@bu-sms.site) and logs copies in the Email tab.
+  const emailCopies = async () => {
+    if (!alsoEmail) return;
+    const { data } = await supabase.from('students').select('id, email, section');
+    let targets = (data || []).filter((s: any) => s.email) as { id: string; email: string; section: string }[];
+    if (messageType === 'announcement') {
+      if (recipientType === 'section' && selectedSection) targets = targets.filter(s => s.section === selectedSection);
+    } else if (recipientType === 'group' && selectedGroupId) {
+      const memberIds = new Set(students.filter(s => s.groupId === selectedGroupId).map(s => s.id));
+      targets = targets.filter(s => memberIds.has(s.id));
+    } else {
+      targets = targets.filter(s => s.id === selectedStudentId);
+    }
+    if (targets.length === 0) return;
+    const emailSubject = subject.trim() || (messageType === 'announcement' ? 'Announcement from CAI112' : 'Message from your teacher');
+    const response = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ to: targets.map(t => t.email), subject: emailSubject, body: messageContent.trim() }),
+    });
+    if (!response.ok) {
+      toast.error('Message posted in the app, but the email copy failed to send');
+      return;
+    }
+    await supabase.from('emails').insert(targets.map(t => ({
+      id: crypto.randomUUID(),
+      direction: 'out',
+      from_addr: 'cai112@bu-sms.site',
+      to_addr: t.email,
+      subject: emailSubject,
+      body: messageContent.trim(),
+      student_id: t.id,
+      is_read: 1,
+    })));
+    toast.success(`Also emailed ${targets.length} student${targets.length === 1 ? '' : 's'}`);
+  };
+
   const handleSendMessage = async () => {
     if (!messageContent.trim()) {
       toast.error('Please enter a message');
@@ -210,6 +249,7 @@ export const TeacherMessagesTab = () => {
       } else {
         const group = groups.find(g => g.id === selectedGroupId);
         toast.success(`Message sent to ${groupMembers.length} members of ${group?.name || 'group'}`);
+        await emailCopies();
         setActiveTab('sent');
         resetComposeForm();
         fetchMessages();
@@ -246,6 +286,7 @@ export const TeacherMessagesTab = () => {
       toast.error('Failed to send message');
     } else {
       toast.success('Message sent successfully');
+      await emailCopies();
       setActiveTab('sent');
       resetComposeForm();
       fetchMessages();
@@ -262,6 +303,7 @@ export const TeacherMessagesTab = () => {
     setSubject('');
     setMessageContent('');
     setReplyingTo(null);
+    setAlsoEmail(false);
     clearSelectedImage();
   };
 
@@ -980,8 +1022,24 @@ export const TeacherMessagesTab = () => {
                 />
               </div>
 
-              <Button 
-                onClick={handleSendMessage} 
+              {/* Optional email copy */}
+              <button
+                type="button"
+                onClick={() => setAlsoEmail(v => !v)}
+                className="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50"
+              >
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${alsoEmail ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'}`}>
+                  {alsoEmail && <Check className="h-3 w-3" />}
+                </span>
+                <Mail className="h-4 w-4 text-primary" />
+                <span className="min-w-0">
+                  Also send as email to the recipients
+                  <span className="block text-xs text-muted-foreground">Delivered from cai112@bu-sms.site to their inbox (image not included)</span>
+                </span>
+              </button>
+
+              <Button
+                onClick={handleSendMessage}
                 disabled={!messageContent.trim() || sending || uploading}
                 className="w-full gap-2"
               >
