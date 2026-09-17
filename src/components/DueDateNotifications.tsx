@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { dismissalSnapshot, parseDismissals, dueNotificationKey, dismissDueNotifications, subscribeToDismissals } from '@/lib/due-notification-dismissals';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -36,15 +37,20 @@ export const DueDateNotifications = () => {
     assignment: DueDate;
     daysUntilDue: number;
   }[]>([]);
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const snapshot = useSyncExternalStore(subscribeToDismissals, () => dismissalSnapshot(currentStudent?.id), () => '[]');
+  const dismissed = useMemo(() => parseDismissals(snapshot), [snapshot]);
   const [loading, setLoading] = useState(true);
-  // Login popups: fired once per assignment at 2 days out, once at 1 day out,
-  // and once after the deadline has passed.
+  // Closing a popup acknowledges the same reminders as closing their banners.
   const [popupItems, setPopupItems] = useState<{ assignment: DueDate; daysUntilDue: number; stage: string }[]>([]);
   const [popupOpen, setPopupOpen] = useState(false);
 
   useEffect(() => {
     if (!currentStudent) return;
+    let cancelled = false;
+    setLoading(true);
+    setPopupOpen(false);
+    setNotifications([]);
+    setPopupItems([]);
 
     const checkNotifications = async () => {
       // Fetch due dates for the student's section or all sections
@@ -55,7 +61,7 @@ export const DueDateNotifications = () => {
 
       if (dueDatesError) {
         console.error('Error fetching due dates:', dueDatesError);
-        setLoading(false);
+        if (!cancelled) setLoading(false);
         return;
       }
 
@@ -118,23 +124,20 @@ export const DueDateNotifications = () => {
         }
       });
 
+      if (cancelled) return;
       setNotifications(upcomingNotifications);
 
-      // Decide which items deserve a one-time popup this login.
+      // Read the latest dismissals in case a reminder was closed during this fetch.
+      const acknowledged = parseDismissals(dismissalSnapshot(currentStudent.id));
       const stageFor = (days: number): string | null =>
         days === 2 ? '2d' : days === 1 ? '1d' : days < 0 ? 'late' : null;
       const fresh = upcomingNotifications
         .map(n => ({ ...n, stage: stageFor(n.daysUntilDue) }))
         .filter((n): n is typeof n & { stage: string } => {
           if (!n.stage) return false;
-          const key = `cai112-duepop:${currentStudent.id}:${n.assignment.id}:${n.stage}`;
-          return !localStorage.getItem(key);
+          return !acknowledged.has(dueNotificationKey(n.assignment));
         });
       if (fresh.length > 0) {
-        // Mark as shown immediately - each stage pops exactly once.
-        fresh.forEach(n => {
-          localStorage.setItem(`cai112-duepop:${currentStudent.id}:${n.assignment.id}:${n.stage}`, '1');
-        });
         setPopupItems(fresh);
         setPopupOpen(true);
       }
@@ -160,25 +163,31 @@ export const DueDateNotifications = () => {
       .subscribe();
 
     return () => {
+      cancelled = true;
       supabase.removeChannel(channel);
     };
   }, [currentStudent]);
 
-  const handleDismiss = (assignmentId: string) => {
-    setDismissed((prev) => new Set([...prev, assignmentId]));
+  const handleDismiss = (assignments: DueDate[]) => {
+    if (currentStudent) dismissDueNotifications(currentStudent.id, assignments.map(dueNotificationKey));
   };
 
   const visibleNotifications = notifications.filter(
-    (n) => !dismissed.has(n.assignment.id)
+    (n) => !dismissed.has(dueNotificationKey(n.assignment))
   );
 
-  const lateItems = popupItems.filter(n => n.stage === 'late');
-  const soonItems = popupItems.filter(n => n.stage !== 'late');
+  const visiblePopupItems = popupItems.filter(n => !dismissed.has(dueNotificationKey(n.assignment)));
+  const lateItems = visiblePopupItems.filter(n => n.stage === 'late');
+  const soonItems = visiblePopupItems.filter(n => n.stage !== 'late');
+  const handlePopupChange = (open: boolean) => {
+    if (!open) handleDismiss(visiblePopupItems.map(n => n.assignment));
+    setPopupOpen(open);
+  };
 
   return (
     <>
-      {/* One-time login popup: 2 days out, 1 day out, and once when overdue */}
-      <Dialog open={popupOpen} onOpenChange={setPopupOpen}>
+      {/* Acknowledged deadlines remain hidden across refreshes and sign-ins. */}
+      <Dialog open={popupOpen && visiblePopupItems.length > 0} onOpenChange={handlePopupChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -194,7 +203,7 @@ export const DueDateNotifications = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            {popupItems.map(({ assignment, daysUntilDue, stage }) => (
+            {visiblePopupItems.map(({ assignment, daysUntilDue, stage }) => (
               <div
                 key={assignment.id + stage}
                 className={`rounded-lg border p-3 ${stage === 'late' ? 'border-destructive/40 bg-destructive/5' : 'border-amber-500/40 bg-amber-500/5'}`}
@@ -216,7 +225,7 @@ export const DueDateNotifications = () => {
               </div>
             ))}
           </div>
-          <Button className="w-full" onClick={() => setPopupOpen(false)}>
+          <Button className="w-full" onClick={() => handlePopupChange(false)}>
             Got it
           </Button>
         </DialogContent>
@@ -272,7 +281,8 @@ export const DueDateNotifications = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => handleDismiss(assignment.id)}
+                onClick={() => handleDismiss([assignment])}
+                aria-label={`Dismiss reminder for ${assignment.assignment_name}`}
                 className="shrink-0 h-10 w-10 p-0 md:h-8 md:w-8"
               >
                 <X className="w-4 h-4" />
