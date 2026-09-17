@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -15,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CalendarClock, Plus, Trash2, Users } from 'lucide-react';
+import { CalendarClock, Plus, Trash2, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 export interface PresentationSlot {
@@ -44,13 +46,19 @@ export const TeacherPresentationSlotsTab = () => {
   const { getGroupById } = useGroups();
   const [slots, setSlots] = useState<PresentationSlot[]>([]);
   const [examType, setExamType] = useState(EXAM_TYPES[0]);
-  const [slotDate, setSlotDate] = useState('');
+  const [datesByExam, setDatesByExam] = useState<Record<string, Date[]>>({});
+  const selectedDates = datesByExam[examType] ?? [];
+  const slotDates = selectedDates.map(date => format(date, 'yyyy-MM-dd')).sort();
+  const setSelectedDates = (dates: Date[]) => setDatesByExam(current => ({ ...current, [examType]: dates }));
   const [slotTime, setSlotTime] = useState('');
   const [section, setSection] = useState('all');
   const [saving, setSaving] = useState(false);
   const [genSection, setGenSection] = useState('458A');
   const [genLength, setGenLength] = useState('15');
   const [generating, setGenerating] = useState(false);
+  const busy = saving || generating;
+  const classWindow = SECTION_WINDOWS[genSection];
+  const slotsPerDay = Math.floor((toMinutes(classWindow.end) - toMinutes(classWindow.start)) / Number(genLength));
 
   const fetchSlots = async () => {
     const { data } = await supabase
@@ -76,30 +84,33 @@ export const TeacherPresentationSlotsTab = () => {
   }, []);
 
   const addSlot = async () => {
-    if (!slotDate || !slotTime) {
-      toast.error('Please pick a date and time');
+    if (busy) return;
+    if (!slotDates.length || !slotTime) {
+      toast.error('Please pick at least one date and a time');
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from('presentation_slots').insert({
+    const { data, error } = await supabase.from('presentation_slots').insert(slotDates.map(slotDate => ({
       id: crypto.randomUUID(),
       exam_type: examType,
       slot_date: slotDate,
       slot_time: slotTime,
       section: section === 'all' ? null : section,
       booked_group_id: null,
-    });
+    })));
     if (error) toast.error('Failed to add slot');
     else {
-      toast.success('Slot added');
+      if (data.length) toast.success(`Added ${data.length} slot${data.length === 1 ? '' : 's'}`);
+      else toast.info('These slots already exist');
       fetchSlots();
     }
     setSaving(false);
   };
 
   const generateSlots = async () => {
-    if (!slotDate) {
-      toast.error('Please pick a date first');
+    if (busy) return;
+    if (!slotDates.length) {
+      toast.error('Please pick at least one date first');
       return;
     }
     const win = SECTION_WINDOWS[genSection];
@@ -107,29 +118,31 @@ export const TeacherPresentationSlotsTab = () => {
     const startMin = toMinutes(win.start);
     const endMin = toMinutes(win.end);
 
-    // Skip times that already exist for this exam/date/section.
+    // The backend also skips duplicates, including retries and concurrent requests.
     const existing = new Set(
       slots
-        .filter(s => s.exam_type === examType && s.slot_date === slotDate && s.section === genSection)
-        .map(s => s.slot_time)
+        .filter(s => s.exam_type === examType && s.section === genSection)
+        .map(s => `${s.slot_date}/${s.slot_time.slice(0, 5)}`)
     );
 
     const rows = [];
-    let queue = 1;
-    for (let t = startMin; t + length <= endMin; t += length) {
-      const time = toTime(t);
-      if (!existing.has(time)) {
-        rows.push({
-          id: crypto.randomUUID(),
-          exam_type: examType,
-          slot_date: slotDate,
-          slot_time: time,
-          section: genSection,
-          booked_group_id: null,
-          queue_no: queue,
-        });
+    for (const slotDate of slotDates) {
+      let queue = 1;
+      for (let t = startMin; t + length <= endMin; t += length) {
+        const time = toTime(t);
+        if (!existing.has(`${slotDate}/${time}`)) {
+          rows.push({
+            id: crypto.randomUUID(),
+            exam_type: examType,
+            slot_date: slotDate,
+            slot_time: time,
+            section: genSection,
+            booked_group_id: null,
+            queue_no: queue,
+          });
+        }
+        queue++;
       }
-      queue++;
     }
 
     if (rows.length === 0) {
@@ -138,10 +151,13 @@ export const TeacherPresentationSlotsTab = () => {
     }
 
     setGenerating(true);
-    const { error } = await supabase.from('presentation_slots').insert(rows);
+    const { data, error } = await supabase.from('presentation_slots').insert(rows);
     if (error) toast.error('Failed to generate slots');
     else {
-      toast.success(`Created ${rows.length} slots for ${genSection} (${win.start}-${win.end}, every ${length} min)`);
+      if (data.length) {
+        const days = new Set(data.map((slot: PresentationSlot) => slot.slot_date)).size;
+        toast.success(`Created ${data.length} slots across ${days} day${days === 1 ? '' : 's'} for ${genSection}`);
+      } else toast.info('All selected slots already exist');
       fetchSlots();
     }
     setGenerating(false);
@@ -159,14 +175,14 @@ export const TeacherPresentationSlotsTab = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg font-display">
             <Plus className="w-5 h-5 text-primary" />
-            Add Presentation Slot
+            Add Presentation Slots
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>For</Label>
-              <Select value={examType} onValueChange={setExamType}>
+              <Select value={examType} onValueChange={setExamType} disabled={busy}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {EXAM_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
@@ -174,18 +190,42 @@ export const TeacherPresentationSlotsTab = () => {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Date</Label>
-              <Input type="date" value={slotDate} onChange={(e) => setSlotDate(e.target.value)} />
+              <Label htmlFor="presentation-dates">Presentation dates</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button id="presentation-dates" variant="outline" disabled={busy} className="w-full justify-start gap-2">
+                    <CalendarClock className="h-4 w-4" />
+                    {slotDates.length ? `${slotDates.length} day${slotDates.length === 1 ? '' : 's'} selected` : 'Choose one or more dates'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="multiple" selected={selectedDates} onSelect={dates => setSelectedDates(dates ?? [])} disabled={busy} initialFocus />
+                </PopoverContent>
+              </Popover>
+              <p className="text-xs text-muted-foreground">Select each presentation day. Click a selected day again to remove it.</p>
+              {slotDates.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {slotDates.map(date => (
+                    <Badge key={date} variant="secondary" className="gap-1">
+                      {format(new Date(date + 'T00:00:00'), 'EEE, MMM d, yyyy')}
+                      <button type="button" disabled={busy} aria-label={`Remove ${date}`} className="rounded p-1 hover:bg-muted focus-visible:outline focus-visible:outline-2" onClick={() => setSelectedDates(selectedDates.filter(day => format(day, 'yyyy-MM-dd') !== date))}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                  <Button variant="ghost" size="sm" disabled={busy} onClick={() => setSelectedDates([])}>Clear dates</Button>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Auto-generate a full class window */}
           <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
-            <p className="text-sm font-medium">Generate the whole class period</p>
+            <p className="text-sm font-medium">Generate the whole class period on each selected day</p>
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label>Section (class time)</Label>
-                <Select value={genSection} onValueChange={setGenSection}>
+                <Select value={genSection} onValueChange={setGenSection} disabled={busy}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {SECTIONS.map(s => (
@@ -198,7 +238,7 @@ export const TeacherPresentationSlotsTab = () => {
               </div>
               <div className="space-y-2">
                 <Label>Presentation length</Label>
-                <Select value={genLength} onValueChange={setGenLength}>
+                <Select value={genLength} onValueChange={setGenLength} disabled={busy}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {['10', '15', '20', '25', '30'].map(m => (
@@ -208,30 +248,26 @@ export const TeacherPresentationSlotsTab = () => {
                 </Select>
               </div>
               <div className="flex items-end">
-                <Button onClick={generateSlots} disabled={generating || !slotDate} className="w-full gap-2">
+                <Button onClick={generateSlots} disabled={busy || !slotDates.length} className="w-full gap-2">
                   <CalendarClock className="w-4 h-4" />
-                  {generating ? 'Generating...' : (() => {
-                    const w = SECTION_WINDOWS[genSection];
-                    const n = Math.floor((toMinutes(w.end) - toMinutes(w.start)) / parseInt(genLength));
-                    return `Generate ${n} slots`;
-                  })()}
+                  {generating ? 'Generating...' : `Generate up to ${slotsPerDay * slotDates.length} slots`}
                 </Button>
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Fills {genSection}'s class period with numbered queue slots, every {genLength} minutes. Already-existing times are skipped.
+              {slotsPerDay} slots per day for {genSection}, every {genLength} minutes. Queue numbers restart each day. Existing slots and bookings are kept; duplicate times are skipped.
             </p>
           </div>
 
           {/* Manual single slot */}
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
-              <Label>Or add a single slot · Time</Label>
-              <Input type="time" value={slotTime} onChange={(e) => setSlotTime(e.target.value)} />
+              <Label htmlFor="presentation-time">Or add one time on each selected day</Label>
+              <Input id="presentation-time" type="time" value={slotTime} disabled={busy} onChange={(e) => setSlotTime(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Section</Label>
-              <Select value={section} onValueChange={setSection}>
+              <Select value={section} onValueChange={setSection} disabled={busy}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Sections</SelectItem>
@@ -240,9 +276,9 @@ export const TeacherPresentationSlotsTab = () => {
               </Select>
             </div>
             <div className="flex items-end">
-              <Button variant="outline" onClick={addSlot} disabled={saving || !slotDate || !slotTime} className="w-full gap-2">
+              <Button variant="outline" onClick={addSlot} disabled={busy || !slotDates.length || !slotTime} className="w-full gap-2">
                 <Plus className="w-4 h-4" />
-                Add Slot
+                {saving ? 'Adding...' : `Add ${slotDates.length} slot${slotDates.length === 1 ? '' : 's'}`}
               </Button>
             </div>
           </div>
@@ -271,7 +307,7 @@ export const TeacherPresentationSlotsTab = () => {
                   if (sectionSlots.length === 0) return null;
                   return (
                     <div key={sec ?? 'all'}>
-                      <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         <Badge variant="secondary" className="text-xs">{sec ?? 'All Sections'}</Badge>
                         {sec && SECTION_WINDOWS[sec] && (
                           <span>{SECTION_WINDOWS[sec].start}-{SECTION_WINDOWS[sec].end}</span>
@@ -279,7 +315,7 @@ export const TeacherPresentationSlotsTab = () => {
                         <span className="normal-case">
                           {sectionSlots.filter(s => s.booked_group_id).length}/{sectionSlots.length} booked
                         </span>
-                      </p>
+                      </div>
                       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {sectionSlots.map(slot => {
                     const group = slot.booked_group_id ? getGroupById(slot.booked_group_id) : null;
@@ -295,7 +331,7 @@ export const TeacherPresentationSlotsTab = () => {
                             {slot.queue_no != null && <span className="mr-1 text-primary">#{slot.queue_no}</span>}
                             {format(new Date(slot.slot_date + 'T00:00:00'), 'EEE, MMM d')} · {slot.slot_time}
                           </p>
-                          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <Badge variant="secondary" className="text-[10px]">{slot.section || 'All'}</Badge>
                             {slot.booked_group_id ? (
                               <span className="flex items-center gap-1 truncate text-success">
@@ -305,7 +341,7 @@ export const TeacherPresentationSlotsTab = () => {
                             ) : (
                               <span>Available</span>
                             )}
-                          </p>
+                          </div>
                         </div>
                         <Button
                           variant="ghost"
