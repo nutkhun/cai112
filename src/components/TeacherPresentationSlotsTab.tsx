@@ -36,7 +36,7 @@ const EXAM_TYPES = ['Midterm Presentation', 'Final Project'];
 const SECTION_WINDOWS: Record<string, { start: string; end: string }> = {
   '458A': { start: '08:40', end: '11:00' },
   '457A': { start: '12:00', end: '14:20' },
-  '458B': { start: '14:00', end: '16:50' },
+  '458B': { start: '14:30', end: '16:50' },
 };
 
 const toMinutes = (t: string) => parseInt(t.slice(0, 2)) * 60 + parseInt(t.slice(3, 5));
