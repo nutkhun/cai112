@@ -19,28 +19,12 @@ import {
 } from '@/components/ui/select';
 import { CalendarClock, Plus, Trash2, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { SECTION_WINDOWS, toMinutes, toTime, type PresentationSlot } from '@/lib/presentation-slots';
+import { PresentationDateGroup, PresentationSlotIdentity } from './PresentationSlotDisplay';
 
-export interface PresentationSlot {
-  id: string;
-  exam_type: string;
-  slot_date: string;
-  slot_time: string;
-  section: string | null;
-  booked_group_id: string | null;
-  queue_no: number | null;
-}
+export type { PresentationSlot } from '@/lib/presentation-slots';
 
 const EXAM_TYPES = ['Midterm Presentation', 'Final Project'];
-
-/** Class periods per section - slots are generated inside these windows. */
-const SECTION_WINDOWS: Record<string, { start: string; end: string }> = {
-  '458A': { start: '08:40', end: '11:00' },
-  '457A': { start: '12:00', end: '14:20' },
-  '458B': { start: '14:30', end: '16:50' },
-};
-
-const toMinutes = (t: string) => parseInt(t.slice(0, 2)) * 60 + parseInt(t.slice(3, 5));
-const toTime = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 export const TeacherPresentationSlotsTab = () => {
   const { getGroupById } = useGroups();
@@ -51,6 +35,7 @@ export const TeacherPresentationSlotsTab = () => {
   const slotDates = selectedDates.map(date => format(date, 'yyyy-MM-dd')).sort();
   const setSelectedDates = (dates: Date[]) => setDatesByExam(current => ({ ...current, [examType]: dates }));
   const [slotTime, setSlotTime] = useState('');
+  const [slotEndTime, setSlotEndTime] = useState('');
   const [section, setSection] = useState('all');
   const [saving, setSaving] = useState(false);
   const [genSection, setGenSection] = useState('458A');
@@ -85,8 +70,8 @@ export const TeacherPresentationSlotsTab = () => {
 
   const addSlot = async () => {
     if (busy) return;
-    if (!slotDates.length || !slotTime) {
-      toast.error('Please pick at least one date and a time');
+    if (!slotDates.length || !slotTime || !slotEndTime || slotEndTime <= slotTime) {
+      toast.error('Pick at least one date and an end time later than the start time');
       return;
     }
     setSaving(true);
@@ -95,8 +80,11 @@ export const TeacherPresentationSlotsTab = () => {
       exam_type: examType,
       slot_date: slotDate,
       slot_time: slotTime,
+      slot_end_time: slotEndTime,
       section: section === 'all' ? null : section,
       booked_group_id: null,
+      queue_no: Math.max(0, ...slots.filter(slot => slot.exam_type === examType && slot.slot_date === slotDate &&
+        slot.section === (section === 'all' ? null : section)).map(slot => slot.queue_no ?? 0)) + 1,
     })));
     if (error) toast.error('Failed to add slot');
     else {
@@ -136,6 +124,7 @@ export const TeacherPresentationSlotsTab = () => {
             exam_type: examType,
             slot_date: slotDate,
             slot_time: time,
+            slot_end_time: toTime(t + length),
             section: genSection,
             booked_group_id: null,
             queue_no: queue,
@@ -260,10 +249,14 @@ export const TeacherPresentationSlotsTab = () => {
           </div>
 
           {/* Manual single slot */}
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
-              <Label htmlFor="presentation-time">Or add one time on each selected day</Label>
+              <Label htmlFor="presentation-time">Or add a slot · Start time</Label>
               <Input id="presentation-time" type="time" value={slotTime} disabled={busy} onChange={(e) => setSlotTime(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="presentation-end-time">End time</Label>
+              <Input id="presentation-end-time" type="time" value={slotEndTime} min={slotTime || undefined} disabled={busy} onChange={(e) => setSlotEndTime(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Section</Label>
@@ -276,7 +269,7 @@ export const TeacherPresentationSlotsTab = () => {
               </Select>
             </div>
             <div className="flex items-end">
-              <Button variant="outline" onClick={addSlot} disabled={busy || !slotDates.length || !slotTime} className="w-full gap-2">
+              <Button variant="outline" onClick={addSlot} disabled={busy || !slotDates.length || !slotTime || !slotEndTime || slotEndTime <= slotTime} className="w-full gap-2">
                 <Plus className="w-4 h-4" />
                 {saving ? 'Adding...' : `Add ${slotDates.length} slot${slotDates.length === 1 ? '' : 's'}`}
               </Button>
@@ -302,61 +295,67 @@ export const TeacherPresentationSlotsTab = () => {
               {typeSlots.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">No slots yet - add some above</p>
               ) : (
-                [...SECTIONS, null].map(sec => {
-                  const sectionSlots = typeSlots.filter(s => (sec === null ? !s.section : s.section === sec));
-                  if (sectionSlots.length === 0) return null;
+                [...new Set(typeSlots.map(slot => slot.slot_date))].map(date => {
+                  const daySlots = typeSlots.filter(slot => slot.slot_date === date);
                   return (
-                    <div key={sec ?? 'all'}>
-                      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        <Badge variant="secondary" className="text-xs">{sec ?? 'All Sections'}</Badge>
-                        {sec && SECTION_WINDOWS[sec] && (
-                          <span>{SECTION_WINDOWS[sec].start}-{SECTION_WINDOWS[sec].end}</span>
-                        )}
-                        <span className="normal-case">
-                          {sectionSlots.filter(s => s.booked_group_id).length}/{sectionSlots.length} booked
-                        </span>
+                    <PresentationDateGroup key={date} date={date} examType={type} slots={daySlots}>
+                      <div className="space-y-4">
+                        {[...SECTIONS, null].map(sec => {
+                          const sectionSlots = daySlots.filter(s => (sec === null ? !s.section : s.section === sec));
+                          if (sectionSlots.length === 0) return null;
+                          return (
+                            <div key={sec ?? 'all'}>
+                              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                <Badge variant="secondary" className="text-xs">{sec ?? 'All Sections'}</Badge>
+                                {sec && SECTION_WINDOWS[sec] && (
+                                  <span>{SECTION_WINDOWS[sec].start}-{SECTION_WINDOWS[sec].end}</span>
+                                )}
+                                <span className="normal-case">
+                                  {sectionSlots.filter(s => s.booked_group_id).length}/{sectionSlots.length} booked
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                {sectionSlots.map(slot => {
+                                  const group = slot.booked_group_id ? getGroupById(slot.booked_group_id) : null;
+                                  return (
+                                    <div
+                                      key={slot.id}
+                                      className={`flex items-center justify-between gap-2 rounded-lg border p-3 ${
+                                        slot.booked_group_id ? 'border-success bg-success/10' : 'border-primary/30 bg-card'
+                                      }`}
+                                    >
+                                      <div className="min-w-0">
+                                        <PresentationSlotIdentity slot={slot} />
+                                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                                          <Badge variant="secondary" className="text-[10px]">{slot.section || 'All'}</Badge>
+                                          {slot.booked_group_id ? (
+                                            <span className="flex items-center gap-1 truncate text-success">
+                                              <Users className="h-3 w-3" />
+                                              {group?.name || 'Booked'}
+                                            </span>
+                                          ) : (
+                                            <span>Available</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 shrink-0 p-0 text-destructive hover:text-destructive"
+                                        onClick={() => deleteSlot(slot)}
+                                        title={slot.booked_group_id ? 'Delete slot (frees the booking)' : 'Delete slot'}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {sectionSlots.map(slot => {
-                    const group = slot.booked_group_id ? getGroupById(slot.booked_group_id) : null;
-                    return (
-                      <div
-                        key={slot.id}
-                        className={`flex items-center justify-between gap-2 rounded-lg border p-3 ${
-                          slot.booked_group_id ? 'border-success/40 bg-success/5' : 'bg-muted/30'
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium">
-                            {slot.queue_no != null && <span className="mr-1 text-primary">#{slot.queue_no}</span>}
-                            {format(new Date(slot.slot_date + 'T00:00:00'), 'EEE, MMM d')} · {slot.slot_time}
-                          </p>
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Badge variant="secondary" className="text-[10px]">{slot.section || 'All'}</Badge>
-                            {slot.booked_group_id ? (
-                              <span className="flex items-center gap-1 truncate text-success">
-                                <Users className="h-3 w-3" />
-                                {group?.name || 'Booked'}
-                              </span>
-                            ) : (
-                              <span>Available</span>
-                            )}
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 shrink-0 p-0 text-destructive hover:text-destructive"
-                          onClick={() => deleteSlot(slot)}
-                          title={slot.booked_group_id ? 'Delete slot (frees the booking)' : 'Delete slot'}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    );
-                  })}
-                      </div>
-                    </div>
+                    </PresentationDateGroup>
                   );
                 })
               )}

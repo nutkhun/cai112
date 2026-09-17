@@ -1,3 +1,5 @@
+import { inferLegacyEndTime } from '../../src/lib/presentation-slots.ts';
+
 // Cloudflare Pages Function: a small PostgREST-style API over Cloudflare D1 + R2.
 // Routes (everything lives under /api):
 //   POST   /api/db                       read or write the D1 database
@@ -135,6 +137,32 @@ async function logChanges(env, table, op, ids) {
   await env.DB.batch(clean.map(function (id) { return stmt.bind(table, op, String(id)); }));
 }
 
+// Additive, repeatable migration: existing identities and bookings are preserved.
+async function ensurePresentationEndTimes(env) {
+  const columns = await env.DB.prepare('PRAGMA table_info(presentation_slots)').all();
+  if (!columns.results.some(column => column.name === 'slot_end_time')) {
+    try {
+      await env.DB.prepare('ALTER TABLE presentation_slots ADD COLUMN slot_end_time TEXT').run();
+    } catch (error) {
+      // Another request may have added the column concurrently.
+      const refreshed = await env.DB.prepare('PRAGMA table_info(presentation_slots)').all();
+      if (!refreshed.results.some(column => column.name === 'slot_end_time')) throw error;
+    }
+  }
+  const missing = await env.DB.prepare('SELECT id FROM presentation_slots WHERE slot_end_time IS NULL LIMIT 1').first();
+  if (!missing) return;
+  const { results: slots } = await env.DB.prepare('SELECT * FROM presentation_slots').all();
+  const statements = [];
+  for (const slot of slots) {
+    if (slot.slot_end_time) continue;
+    const end = inferLegacyEndTime(slot, slots);
+    if (!end) continue;
+    statements.push(env.DB.prepare('UPDATE presentation_slots SET slot_end_time = ? WHERE id = ? AND slot_end_time IS NULL').bind(end, slot.id));
+    statements.push(env.DB.prepare("INSERT INTO _changes (tbl, op, row_id) SELECT 'presentation_slots', 'UPDATE', ? WHERE changes() > 0").bind(slot.id));
+  }
+  if (statements.length) await env.DB.batch(statements);
+}
+
 // Save a multi-day schedule and its change notifications in one transaction.
 // Conditional inserts preserve bookings and make repeated requests harmless.
 async function insertPresentationSlots(env, rows) {
@@ -143,11 +171,15 @@ async function insertPresentationSlots(env, rows) {
   for (const row of rows) {
     const date = String(row.slot_date || '');
     const time = String(row.slot_time || '');
+    const end = row.slot_end_time == null ? null : String(row.slot_end_time);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
         !Number.isFinite(Date.parse(date + 'T00:00:00Z')) ||
         new Date(date + 'T00:00:00Z').toISOString().slice(0, 10) !== date ||
         !/^([01]\d|2[0-3]):[0-5]\d(:00)?$/.test(time)) {
       throw new Error('Each presentation slot needs a valid date and time');
+    }
+    if (end !== null && (!/^([01]\d|2[0-3]):[0-5]\d(:00)?$/.test(end) || end.slice(0, 5) <= time.slice(0, 5))) {
+      throw new Error('The end time must be later than the start time on the same day');
     }
     if (!['Midterm Presentation', 'Final Project'].includes(row.exam_type) ||
         (row.section != null && !['457A', '458A', '458B'].includes(row.section))) {
@@ -156,12 +188,12 @@ async function insertPresentationSlots(env, rows) {
     const id = row.id || crypto.randomUUID();
     const section = row.section ?? null;
     statements.push(env.DB.prepare(
-      'INSERT INTO presentation_slots (id, exam_type, slot_date, slot_time, section, booked_group_id, queue_no) ' +
-      'SELECT ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (' +
+      'INSERT INTO presentation_slots (id, exam_type, slot_date, slot_time, section, booked_group_id, queue_no, slot_end_time) ' +
+      'SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (' +
       'SELECT 1 FROM presentation_slots WHERE exam_type = ? AND slot_date = ? ' +
       'AND substr(slot_time, 1, 5) = ? AND section IS ?) RETURNING *'
     ).bind(id, row.exam_type, date, time.slice(0, 5), section, row.booked_group_id ?? null,
-      row.queue_no ?? null, row.exam_type, date, time.slice(0, 5), section));
+      row.queue_no ?? null, end?.slice(0, 5) ?? null, row.exam_type, date, time.slice(0, 5), section));
     // changes() refers to the immediately preceding insert, even when skipped.
     statements.push(env.DB.prepare(
       "INSERT INTO _changes (tbl, op, row_id) SELECT 'presentation_slots', 'INSERT', ? WHERE changes() > 0"
@@ -179,6 +211,7 @@ async function handleDb(request, env) {
   const quoted = ident(table);
   const op = String(body.op || 'select');
   try {
+    if (table === 'presentation_slots') await ensurePresentationEndTimes(env);
     if (op === 'select') {
       let count = null;
       if (body.count) {

@@ -6,16 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CalendarClock, Check, Lock, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
-
-interface Slot {
-  id: string;
-  exam_type: string;
-  slot_date: string;
-  slot_time: string;
-  section: string | null;
-  booked_group_id: string | null;
-  queue_no: number | null;
-}
+import { queueLabel, slotTimeRange, type PresentationSlot as Slot } from '@/lib/presentation-slots';
+import { PresentationDateGroup, PresentationSlotIdentity } from './PresentationSlotDisplay';
 
 const EXAM_TYPES = ['Midterm Presentation', 'Final Project'];
 
@@ -135,7 +127,7 @@ export const PresentationQueue = ({ groupId }: { groupId: string | null }) => {
                 {type}
                 {mySlot && (
                   <Badge className="border-0 bg-success/15 text-[10px] text-success">
-                    Your slot: {format(new Date(mySlot.slot_date + 'T00:00:00'), 'MMM d')} · {mySlot.slot_time}
+                    Your {queueLabel(mySlot)} · {format(new Date(mySlot.slot_date + 'T00:00:00'), 'MMM d')} · {slotTimeRange(mySlot)}
                   </Badge>
                 )}
               </h3>
@@ -148,15 +140,8 @@ export const PresentationQueue = ({ groupId }: { groupId: string | null }) => {
                   {dates.map(date => {
                     const daySlots = typeSlots.filter(slot => slot.slot_date === date);
                     const dateLabel = format(new Date(date + 'T00:00:00'), 'EEEE, MMMM d, yyyy');
-                    const available = daySlots.filter(slot => !slot.booked_group_id).length;
                     return (
-                      <section key={date} aria-label={`${type} — ${dateLabel}`} className="rounded-xl border border-border/60 bg-muted/20 p-3 sm:p-4">
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                          <h4 className="text-sm font-semibold text-foreground">{dateLabel}</h4>
-                          <Badge variant="secondary" className="text-[10px] font-normal">
-                            {available} of {daySlots.length} available
-                          </Badge>
-                        </div>
+                      <PresentationDateGroup key={date} date={date} examType={type} slots={daySlots}>
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                           {daySlots.map(slot => {
                             const mine = !!groupId && slot.booked_group_id === groupId;
@@ -167,9 +152,9 @@ export const PresentationQueue = ({ groupId }: { groupId: string | null }) => {
                                 type="button"
                                 disabled={taken || busy || (bookingLocked && !mine)}
                                 onClick={() => book(slot)}
-                                aria-label={`${type}, ${dateLabel}, ${slot.slot_time}${slot.queue_no != null ? `, queue ${slot.queue_no}` : ''}, ${mine ? 'Your group' : taken ? 'Unavailable' : 'Available'}`}
+                                aria-label={`${queueLabel(slot)}, ${type}, ${dateLabel}, ${slotTimeRange(slot)}, ${mine ? 'Your group' : taken ? 'Unavailable' : 'Available'}`}
                                 title={mine ? 'Tap to release your booking' : taken ? 'Unavailable' : bookingLocked ? 'Join or create a group to book' : 'Tap to book for your group'}
-                                className={`rounded-lg border p-2 text-left text-xs transition-colors ${
+                                className={`rounded-lg border p-3 text-left text-xs transition-colors ${
                                   mine
                                     ? 'border-success bg-success/10'
                                     : taken
@@ -178,20 +163,17 @@ export const PresentationQueue = ({ groupId }: { groupId: string | null }) => {
                                 }`}
                               >
                                 <span className="flex items-center justify-between gap-1">
-                                  <span className="font-medium">
-                                    {slot.queue_no != null && <span className="mr-1 text-primary">#{slot.queue_no}</span>}
-                                    {slot.slot_time}
-                                  </span>
+                                  <PresentationSlotIdentity slot={slot} />
                                   {mine ? <Check className="h-3.5 w-3.5 text-success" /> : taken ? <Lock className="h-3.5 w-3.5 text-muted-foreground" /> : null}
                                 </span>
-                                <span className={`block font-medium ${mine ? 'text-success' : taken ? 'text-muted-foreground' : 'text-primary'}`}>
+                                <span className={`mt-2 block font-medium ${mine ? 'text-success' : taken ? 'text-muted-foreground' : 'text-primary'}`}>
                                   {mine ? 'Your group' : taken ? 'Unavailable' : 'Available'}
                                 </span>
                               </button>
                             );
                           })}
                         </div>
-                      </section>
+                      </PresentationDateGroup>
                     );
                   })}
                 </div>
