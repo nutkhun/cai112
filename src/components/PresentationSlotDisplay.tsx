@@ -6,7 +6,7 @@ import { queueLabel, slotTimeRange, type PresentationSlot } from '@/lib/presenta
 export function PresentationSlotIdentity({ slot }: { slot: PresentationSlot }) {
   return (
     <span className="block">
-      <span className="block text-[9px] font-bold leading-[14px] tracking-wide text-primary sm:text-[10px]">{queueLabel(slot)}</span>
+      <span className="block text-sm font-bold tracking-wide text-primary sm:text-base">{queueLabel(slot)}</span>
       <span className="mt-1 block text-sm font-medium tabular-nums text-foreground sm:text-base">{slotTimeRange(slot)}</span>
     </span>
   );

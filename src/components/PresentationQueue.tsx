@@ -166,7 +166,7 @@ export const PresentationQueue = ({ groupId }: { groupId: string | null }) => {
                                   <PresentationSlotIdentity slot={slot} />
                                   {mine ? <Check className="h-3.5 w-3.5 text-success" /> : taken ? <Lock className="h-3.5 w-3.5 text-muted-foreground" /> : null}
                                 </span>
-                                <span className={`mt-2 block text-[18px] font-medium leading-6 ${mine ? 'text-success' : taken ? 'text-muted-foreground' : 'text-primary'}`}>
+                                <span className={`mt-2 block text-sm font-medium sm:text-base ${mine ? 'text-success' : taken ? 'text-muted-foreground' : 'text-primary'}`}>
                                   {mine ? 'Your group' : taken ? 'Unavailable' : 'Available'}
                                 </span>
                               </button>

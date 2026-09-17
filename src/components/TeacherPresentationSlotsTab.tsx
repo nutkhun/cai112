@@ -326,11 +326,11 @@ export const TeacherPresentationSlotsTab = () => {
                                     >
                                       <div className="min-w-0">
                                         <PresentationSlotIdentity slot={slot} />
-                                        <div className="mt-2 flex flex-wrap items-center gap-[9px] text-[18px] leading-6 text-muted-foreground">
-                                          <Badge variant="secondary" className="px-[15px] py-[3px] text-[15px] leading-6">{slot.section || 'All'}</Badge>
+                                        <div className="mt-2 flex flex-wrap items-center gap-[9px] text-sm text-muted-foreground sm:text-base">
+                                          <Badge variant="secondary" className="px-[15px] py-[3px] text-sm sm:text-base">{slot.section || 'All'}</Badge>
                                           {slot.booked_group_id ? (
                                             <span className="flex items-center gap-1.5 truncate text-success">
-                                              <Users className="h-[18px] w-[18px] shrink-0" />
+                                              <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
                                               {group?.name || 'Booked'}
                                             </span>
                                           ) : (
