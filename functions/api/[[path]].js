@@ -135,6 +135,42 @@ async function logChanges(env, table, op, ids) {
   await env.DB.batch(clean.map(function (id) { return stmt.bind(table, op, String(id)); }));
 }
 
+// Save a multi-day schedule and its change notifications in one transaction.
+// Conditional inserts preserve bookings and make repeated requests harmless.
+async function insertPresentationSlots(env, rows) {
+  if (!rows.length) return [];
+  const statements = [];
+  for (const row of rows) {
+    const date = String(row.slot_date || '');
+    const time = String(row.slot_time || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+        !Number.isFinite(Date.parse(date + 'T00:00:00Z')) ||
+        new Date(date + 'T00:00:00Z').toISOString().slice(0, 10) !== date ||
+        !/^([01]\d|2[0-3]):[0-5]\d(:00)?$/.test(time)) {
+      throw new Error('Each presentation slot needs a valid date and time');
+    }
+    if (!['Midterm Presentation', 'Final Project'].includes(row.exam_type) ||
+        (row.section != null && !['457A', '458A', '458B'].includes(row.section))) {
+      throw new Error('Invalid presentation type or section');
+    }
+    const id = row.id || crypto.randomUUID();
+    const section = row.section ?? null;
+    statements.push(env.DB.prepare(
+      'INSERT INTO presentation_slots (id, exam_type, slot_date, slot_time, section, booked_group_id, queue_no) ' +
+      'SELECT ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (' +
+      'SELECT 1 FROM presentation_slots WHERE exam_type = ? AND slot_date = ? ' +
+      'AND substr(slot_time, 1, 5) = ? AND section IS ?) RETURNING *'
+    ).bind(id, row.exam_type, date, time.slice(0, 5), section, row.booked_group_id ?? null,
+      row.queue_no ?? null, row.exam_type, date, time.slice(0, 5), section));
+    // changes() refers to the immediately preceding insert, even when skipped.
+    statements.push(env.DB.prepare(
+      "INSERT INTO _changes (tbl, op, row_id) SELECT 'presentation_slots', 'INSERT', ? WHERE changes() > 0"
+    ).bind(id));
+  }
+  const results = await env.DB.batch(statements);
+  return results.flatMap((result, index) => index % 2 === 0 ? result.results || [] : []);
+}
+
 async function handleDb(request, env) {
   let body;
   try { body = await request.json(); } catch (err) { return json({ error: 'Invalid JSON body' }, 400); }
@@ -161,6 +197,9 @@ async function handleDb(request, env) {
     }
     if (op === 'insert' || op === 'upsert') {
       const rows = Array.isArray(body.rows) ? body.rows : [];
+      if (table === 'presentation_slots' && op === 'insert') {
+        return json({ data: await insertPresentationSlots(env, rows) });
+      }
       const saved = [];
       for (const input of rows) {
         const record = Object.assign({}, input);
