@@ -127,53 +127,71 @@ export const PresentationQueue = ({ groupId }: { groupId: string | null }) => {
         )}
         {EXAM_TYPES.map(type => {
           const typeSlots = visibleSlots.filter(s => s.exam_type === type);
+          const dates = [...new Set(typeSlots.map(slot => slot.slot_date))];
           const mySlot = groupId ? typeSlots.find(s => s.booked_group_id === groupId) : undefined;
           return (
             <div key={type}>
-              <p className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <h3 className="mb-2 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {type}
                 {mySlot && (
                   <Badge className="border-0 bg-success/15 text-[10px] text-success">
                     Your slot: {format(new Date(mySlot.slot_date + 'T00:00:00'), 'MMM d')} · {mySlot.slot_time}
                   </Badge>
                 )}
-              </p>
+              </h3>
               {typeSlots.length === 0 ? (
                 <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                   No slots posted yet - your teacher will open booking here.
                 </p>
               ) : (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {typeSlots.map(slot => {
-                    const mine = !!groupId && slot.booked_group_id === groupId;
-                    const taken = !!slot.booked_group_id && !mine;
+                <div className="space-y-4">
+                  {dates.map(date => {
+                    const daySlots = typeSlots.filter(slot => slot.slot_date === date);
+                    const dateLabel = format(new Date(date + 'T00:00:00'), 'EEEE, MMMM d, yyyy');
+                    const available = daySlots.filter(slot => !slot.booked_group_id).length;
                     return (
-                      <button
-                        key={slot.id}
-                        type="button"
-                        disabled={taken || busy || (bookingLocked && !mine)}
-                        onClick={() => book(slot)}
-                        title={mine ? 'Tap to release your booking' : taken ? 'Unavailable' : bookingLocked ? 'Join or create a group to book' : 'Tap to book for your group'}
-                        className={`rounded-lg border p-2 text-left text-xs transition-colors ${
-                          mine
-                            ? 'border-success bg-success/10'
-                            : taken
-                              ? 'cursor-not-allowed border-border bg-muted/60 opacity-60'
-                              : 'border-primary/30 bg-card hover:bg-primary/5'
-                        }`}
-                      >
-                        <span className="flex items-center justify-between gap-1">
-                          <span className="font-medium">
-                            {slot.queue_no != null && <span className="mr-1 text-primary">#{slot.queue_no}</span>}
-                            {format(new Date(slot.slot_date + 'T00:00:00'), 'EEE, MMM d')}
-                          </span>
-                          {mine ? <Check className="h-3.5 w-3.5 text-success" /> : taken ? <Lock className="h-3.5 w-3.5 text-muted-foreground" /> : null}
-                        </span>
-                        <span className="text-muted-foreground">{slot.slot_time}</span>
-                        <span className={`block font-medium ${mine ? 'text-success' : taken ? 'text-muted-foreground' : 'text-primary'}`}>
-                          {mine ? 'Your group' : taken ? 'Unavailable' : 'Available'}
-                        </span>
-                      </button>
+                      <section key={date} aria-label={`${type} — ${dateLabel}`} className="rounded-xl border border-border/60 bg-muted/20 p-3 sm:p-4">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                          <h4 className="text-sm font-semibold text-foreground">{dateLabel}</h4>
+                          <Badge variant="secondary" className="text-[10px] font-normal">
+                            {available} of {daySlots.length} available
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {daySlots.map(slot => {
+                            const mine = !!groupId && slot.booked_group_id === groupId;
+                            const taken = !!slot.booked_group_id && !mine;
+                            return (
+                              <button
+                                key={slot.id}
+                                type="button"
+                                disabled={taken || busy || (bookingLocked && !mine)}
+                                onClick={() => book(slot)}
+                                aria-label={`${type}, ${dateLabel}, ${slot.slot_time}${slot.queue_no != null ? `, queue ${slot.queue_no}` : ''}, ${mine ? 'Your group' : taken ? 'Unavailable' : 'Available'}`}
+                                title={mine ? 'Tap to release your booking' : taken ? 'Unavailable' : bookingLocked ? 'Join or create a group to book' : 'Tap to book for your group'}
+                                className={`rounded-lg border p-2 text-left text-xs transition-colors ${
+                                  mine
+                                    ? 'border-success bg-success/10'
+                                    : taken
+                                      ? 'cursor-not-allowed border-border bg-muted/60 opacity-60'
+                                      : 'border-primary/30 bg-card hover:bg-primary/5'
+                                }`}
+                              >
+                                <span className="flex items-center justify-between gap-1">
+                                  <span className="font-medium">
+                                    {slot.queue_no != null && <span className="mr-1 text-primary">#{slot.queue_no}</span>}
+                                    {slot.slot_time}
+                                  </span>
+                                  {mine ? <Check className="h-3.5 w-3.5 text-success" /> : taken ? <Lock className="h-3.5 w-3.5 text-muted-foreground" /> : null}
+                                </span>
+                                <span className={`block font-medium ${mine ? 'text-success' : taken ? 'text-muted-foreground' : 'text-primary'}`}>
+                                  {mine ? 'Your group' : taken ? 'Unavailable' : 'Available'}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </section>
                     );
                   })}
                 </div>
