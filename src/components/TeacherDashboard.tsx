@@ -1502,6 +1502,9 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
 
   // Get unique sections from students
   const sections = [...SECTIONS];
+  const studentFilterGroups = groups.filter(group =>
+    studentSectionFilter === 'all' || group.members.some(member => member.section === studentSectionFilter)
+  );
 
   // Filter and sort students
   const filteredStudents = students.filter(student => {
@@ -2130,7 +2133,10 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                     <span className="text-sm text-muted-foreground">Filters:</span>
                   </div>
                   
-                  <Select value={studentSectionFilter} onValueChange={setStudentSectionFilter}>
+                  <Select value={studentSectionFilter} onValueChange={section => {
+                    setStudentSectionFilter(section);
+                    setStudentGroupFilter('all');
+                  }}>
                     <SelectTrigger className="w-[120px] h-9">
                       <SelectValue placeholder="Section" />
                     </SelectTrigger>
@@ -2149,7 +2155,7 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
                     <SelectContent>
                       <SelectItem value="all">All Groups</SelectItem>
                       <SelectItem value="ungrouped">Ungrouped</SelectItem>
-                      {groups.map(group => (
+                      {studentFilterGroups.map(group => (
                         <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
                       ))}
                     </SelectContent>
