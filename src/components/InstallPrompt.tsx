@@ -1,3 +1,4 @@
+import { browserStorage } from '@/lib/browser-storage';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,7 +36,7 @@ if (typeof window !== 'undefined') {
   // A completed install clears any snooze, so a student who uninstalls
   // the app later gets offered it again on their next sign-in.
   window.addEventListener('appinstalled', () => {
-    localStorage.removeItem(SNOOZE_KEY);
+    browserStorage.removeItem(SNOOZE_KEY);
   });
 }
 
@@ -60,7 +61,7 @@ export const InstallPrompt = ({ signedIn }: InstallPromptProps) => {
 
   useEffect(() => {
     if (!signedIn || isStandalone()) return;
-    const snoozedUntil = Number(localStorage.getItem(SNOOZE_KEY) || 0);
+    const snoozedUntil = Number(browserStorage.getItem(SNOOZE_KEY) || 0);
     if (Date.now() < snoozedUntil) return;
 
     const iosDevice = isIos();
@@ -76,7 +77,7 @@ export const InstallPrompt = ({ signedIn }: InstallPromptProps) => {
   }, [signedIn]);
 
   const snooze = () => {
-    localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_DAYS * 24 * 60 * 60 * 1000));
+    browserStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_DAYS * 24 * 60 * 60 * 1000));
     setOpen(false);
   };
 
@@ -90,7 +91,7 @@ export const InstallPrompt = ({ signedIn }: InstallPromptProps) => {
       // Snooze only when the student declined Chrome's prompt; accepting
       // fires `appinstalled`, which clears any snooze instead.
       if (choice.outcome === 'dismissed') {
-        localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_DAYS * 24 * 60 * 60 * 1000));
+        browserStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_DAYS * 24 * 60 * 60 * 1000));
       }
     } catch {
       /* prompt already used or blocked - nothing to do */

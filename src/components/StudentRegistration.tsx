@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { readStudentLogin } from '@/lib/student-login';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,13 +23,16 @@ export const StudentRegistration = ({
 }: StudentRegistrationProps) => {
   const [name, setName] = useState('');
   const [studentId, setStudentId] = useState('');
-  const [section, setSection] = useState<Section>('457A');
+  const [section, setSection] = useState<Section | ''>('');
   const [pin, setPin] = useState('');
   const [showPinChangeDialog, setShowPinChangeDialog] = useState(false);
   const [pendingStudent, setPendingStudent] = useState<Student | null>(null);
   const [showTeacherPinDialog, setShowTeacherPinDialog] = useState(false);
   const [teacherPin, setTeacherPin] = useState('');
   const [showLoginErrorDialog, setShowLoginErrorDialog] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const {
     addStudent,
     updateStudentPin,
@@ -36,26 +40,32 @@ export const StudentRegistration = ({
   } = useGroups();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !studentId.trim()) {
-      toast.error('Please fill in all fields');
+    if (submittingRef.current) return;
+    // Include the values displayed by browser/password-manager autofill.
+    const credentials = readStudentLogin(new FormData(e.currentTarget as HTMLFormElement));
+    if ('error' in credentials) {
+      toast.error(credentials.error);
       return;
     }
-    if (pin.length !== 4) {
-      toast.error('Please enter a 4-digit PIN');
-      return;
-    }
-    const result = await addStudent(name.trim(), studentId.trim(), section, pin);
-    if (!result) {
-      toast.error('Registration failed. Please try again.');
-    } else if ('error' in result) {
-      // A dialog is harder to miss than a toast on a phone.
-      setPin('');
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      const result = await addStudent(credentials.name, credentials.studentId, credentials.section, credentials.pin);
+      if (!result || 'error' in result) {
+        setLoginError(result && 'error' in result ? result.error : 'Sign in could not be completed. Please try again.');
+        setShowLoginErrorDialog(true);
+      } else if (result.requiresPinChange) {
+        setPendingStudent(result.student);
+        setShowPinChangeDialog(true);
+      } else {
+        toast.success(`Welcome, ${result.student.name}!`);
+      }
+    } catch {
+      setLoginError('Sign in could not be completed. Please check your connection and try again.');
       setShowLoginErrorDialog(true);
-    } else if (result.requiresPinChange) {
-      setPendingStudent(result.student);
-      setShowPinChangeDialog(true);
-    } else {
-      toast.success(`Welcome, ${result.student.name}!`);
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
   const handlePinChanged = async (newPin: string) => {
@@ -110,7 +120,7 @@ export const StudentRegistration = ({
                   <User className="w-4 h-4 text-muted-foreground" />
                   Last Name
                 </Label>
-                <Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="Enter your last name" className="h-11" />
+                <Input id="name" name="lastName" autoComplete="family-name" value={name} onChange={e => setName(e.target.value)} placeholder="Enter your last name" className="h-11" disabled={submitting} />
               </div>
               
               <div className="space-y-2">
@@ -118,7 +128,7 @@ export const StudentRegistration = ({
                   <IdCard className="w-4 h-4 text-muted-foreground" />
                   Student ID
                 </Label>
-                <Input id="studentId" value={studentId} onChange={e => setStudentId(e.target.value)} placeholder="Enter your student ID" className="h-11" />
+                <Input id="studentId" name="studentId" autoComplete="username" value={studentId} onChange={e => setStudentId(e.target.value)} placeholder="Enter your student ID" className="h-11" disabled={submitting} />
               </div>
 
               <div className="space-y-2">
@@ -126,8 +136,8 @@ export const StudentRegistration = ({
                   <BookOpen className="w-4 h-4 text-muted-foreground" />
                   Section
                 </Label>
-                <Select value={section} onValueChange={value => setSection(value as Section)}>
-                  <SelectTrigger className="h-11">
+                <Select name="section" value={section} onValueChange={value => setSection(value as Section)} disabled={submitting}>
+                  <SelectTrigger id="section" className="h-11">
                     <SelectValue placeholder="Select your section" />
                   </SelectTrigger>
                 <SelectContent>
@@ -139,21 +149,12 @@ export const StudentRegistration = ({
               </div>
 
               <div className="space-y-2">
-                <Label className="flex items-center gap-2">
+                <Label htmlFor="student-pin" className="flex items-center gap-2">
                   <Lock className="w-4 h-4 text-muted-foreground" />
                   4-Digit PIN
                 </Label>
                 <div className="flex justify-center">
-                  <InputOTP maxLength={4} value={pin} onChange={value => {
-                  setPin(value);
-                  // Auto-submit when 4 digits are entered
-                  if (value.length === 4 && name.trim() && studentId.trim()) {
-                    setTimeout(() => {
-                      const form = document.querySelector('form');
-                      form?.requestSubmit();
-                    }, 100);
-                  }
-                }}>
+                  <InputOTP id="student-pin" name="pin" autoComplete="current-password" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={pin} onChange={setPin} disabled={submitting}>
                     <InputOTPGroup>
                       <InputOTPSlot index={0} />
                       <InputOTPSlot index={1} />
@@ -163,6 +164,9 @@ export const StudentRegistration = ({
                   </InputOTP>
                 </div>
               </div>
+              <Button type="submit" className="w-full h-11" disabled={submitting}>
+                {submitting ? 'Signing in…' : 'Sign In'}
+              </Button>
             </form>
           </CardContent>
         </Card>
@@ -183,8 +187,7 @@ export const StudentRegistration = ({
               Login not successful
             </DialogTitle>
             <DialogDescription className="pt-2 text-base">
-              Please check your login information. Watch out for misspelled input text or a
-              wrong registration section.
+              {loginError}
             </DialogDescription>
           </DialogHeader>
           <Button className="w-full" onClick={() => setShowLoginErrorDialog(false)}>

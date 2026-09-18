@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { Student, Group, Section } from '@/types';
 import { supabase } from '@/integrations/backend/client';
 import { toast } from 'sonner';
+import { browserStorage } from '@/lib/browser-storage';
 
 interface GroupContextType {
   students: Student[];
@@ -35,8 +36,8 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const SESSION_KEY = 'cai112-session-student-id';
   const setCurrentStudent = useCallback((student: Student | null) => {
     setCurrentStudentState(student);
-    if (student) localStorage.setItem(SESSION_KEY, student.id);
-    else localStorage.removeItem(SESSION_KEY);
+    if (student) browserStorage.setItem(SESSION_KEY, student.id);
+    else browserStorage.removeItem(SESSION_KEY);
   }, []);
   const [loading, setLoading] = useState(true);
 
@@ -110,11 +111,11 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // no longer exists (removed by the teacher), drop the stale session.
   useEffect(() => {
     if (loading || currentStudent) return;
-    const savedId = localStorage.getItem(SESSION_KEY);
+    const savedId = browserStorage.getItem(SESSION_KEY);
     if (!savedId) return;
     const saved = students.find(s => s.id === savedId);
     if (saved) setCurrentStudentState(saved);
-    else if (students.length > 0) localStorage.removeItem(SESSION_KEY);
+    else if (students.length > 0) browserStorage.removeItem(SESSION_KEY);
   }, [loading, students, currentStudent]);
 
   const addStudent = useCallback(async (name: string, studentId: string, section: Section, pin: string): Promise<{ student: Student; requiresPinChange: boolean } | { error: string } | null> => {
@@ -138,11 +139,15 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     // Try to fetch from database first to check if student exists (case-insensitive)
-    const { data: existingData } = await supabase
+    const { data: existingData, error: lookupError } = await supabase
       .from('students')
       .select('*')
       .ilike('student_id', studentId)
       .maybeSingle();
+
+    if (lookupError) {
+      return { error: 'Unable to check your account right now. Please check your connection and try again.' };
+    }
 
     if (existingData) {
       // Student exists in DB - validate credentials
@@ -173,7 +178,7 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Student ID not found - do not allow new registrations
     return { error: 'Student ID not found. Please check your Student ID and try again. Contact your teacher if you believe this is an error.' };
-  }, []);
+  }, [setCurrentStudent]);
 
   const updateStudentPin = useCallback(async (studentId: string, newPin: string): Promise<boolean> => {
     const { error } = await supabase

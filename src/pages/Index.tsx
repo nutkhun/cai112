@@ -1,3 +1,4 @@
+import { browserStorage } from '@/lib/browser-storage';
 import { useState } from 'react';
 import { GroupProvider, useGroups } from '@/context/GroupContext';
 import { StudentRegistration } from '@/components/StudentRegistration';
@@ -13,16 +14,16 @@ const AppContent = () => {
   // The teacher stays signed in across reloads until they leave via the back
   // button; the PIN is only asked again after that.
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
-    localStorage.getItem(TEACHER_SESSION_KEY) === 'on' ? 'teacher' : 'student'
+    browserStorage.getItem(TEACHER_SESSION_KEY) === 'on' ? 'teacher' : 'student'
   );
   const signedIn = viewMode === 'teacher' || !!currentStudent;
 
   const enterTeacher = () => {
-    localStorage.setItem(TEACHER_SESSION_KEY, 'on');
+    browserStorage.setItem(TEACHER_SESSION_KEY, 'on');
     setViewMode('teacher');
   };
   const leaveTeacher = () => {
-    localStorage.removeItem(TEACHER_SESSION_KEY);
+    browserStorage.removeItem(TEACHER_SESSION_KEY);
     setViewMode('student');
   };
 
