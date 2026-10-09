@@ -11,8 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { StickyNote } from 'lucide-react';
+import { StickyNote, Users, Crown, User } from 'lucide-react';
 import { supabase } from '@/integrations/backend/client';
+import { useGroups } from '@/context/GroupContext';
 import { toast } from 'sonner';
 
 const RUBRIC_CRITERIA = [
@@ -48,6 +49,16 @@ export const RubricScoringDialog = ({
   const [note, setNote] = useState('');
   const [noteGroupId, setNoteGroupId] = useState<string | null>(null);
   const [noteSaving, setNoteSaving] = useState(false);
+
+  // The score is saved for every member of the student's group, so the
+  // dialog shows who that is instead of just the one name that was clicked.
+  const { getStudentById, getGroupById } = useGroups();
+  const student = getStudentById(studentId);
+  const group = student?.groupId ? getGroupById(student.groupId) : undefined;
+  const members = group
+    ? [...group.members].sort((a, b) =>
+        (a.id === group.leaderId ? -1 : b.id === group.leaderId ? 1 : 0) || a.name.localeCompare(b.name))
+    : [];
 
   const storageKey = `rubric:${studentId}:${assignmentType}`;
   // Same storage the grading table's sticky-note buttons use, so the note is
@@ -155,9 +166,53 @@ export const RubricScoringDialog = ({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-lg">
-            {assignmentType === 'Midterm Presentation' ? 'Midterm' : 'Final'} Rubric — {studentName}
+            {assignmentType === 'Midterm Presentation' ? 'Midterm' : 'Final'} Rubric — {group ? group.name : studentName}
           </DialogTitle>
         </DialogHeader>
+
+        {/* Who this score goes to */}
+        {group ? (
+          <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Badge className="gap-1.5 border-0 bg-primary/15 text-primary">
+                <Users className="h-3.5 w-3.5" />
+                {group.name}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                {members.length} member{members.length === 1 ? '' : 's'} · this score is saved for all of them
+              </span>
+            </div>
+            {/* One column: student names here are long (full formal names) and
+                a two-column grid truncated them to a few letters. */}
+            <ul className="grid gap-1">
+              {members.map(member => {
+                const isLeader = member.id === group.leaderId;
+                const isOpened = member.id === studentId;
+                return (
+                  <li
+                    key={member.id}
+                    className={`flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm ${
+                      isOpened ? 'bg-primary/10 font-medium' : ''
+                    }`}
+                  >
+                    {isLeader
+                      ? <Crown className="h-4 w-4 shrink-0 text-accent" aria-label="Group leader" />
+                      : <User className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                    <span className="min-w-0 flex-1 truncate">{member.name}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{member.studentId}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 p-3 text-sm">
+            <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="truncate font-medium">{studentName}</span>
+            {student?.studentId && <span className="ml-auto text-xs tabular-nums text-muted-foreground">{student.studentId}</span>}
+            <Badge variant="outline" className="ml-2 shrink-0 text-xs">Individual</Badge>
+          </div>
+        )}
 
         <div className="space-y-3">
           {RUBRIC_CRITERIA.map((criteria) => (
