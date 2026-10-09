@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CalendarClock, Plus, Trash2, Users, X, AlertTriangle, Unlock } from 'lucide-react';
+import { CalendarClock, Plus, Trash2, Users, X, AlertTriangle, Unlock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SECTION_WINDOWS, toMinutes, toTime, type PresentationSlot } from '@/lib/presentation-slots';
 import { PresentationDateGroup, PresentationSlotIdentity } from './PresentationSlotDisplay';
@@ -26,9 +26,25 @@ export type { PresentationSlot } from '@/lib/presentation-slots';
 
 const EXAM_TYPES = ['Midterm Presentation', 'Final Project'];
 
-export const TeacherPresentationSlotsTab = () => {
+interface ExamGrade {
+  student_id: string;
+  assignment_name: string;
+  score: number;
+  max_score: number;
+}
+
+interface TeacherPresentationSlotsTabProps {
+  /**
+   * Called when the teacher clicks a booked slot. Receives the group's id so
+   * the dashboard can jump to the Grading tab filtered to that group.
+   */
+  onOpenGrading?: (groupId: string) => void;
+}
+
+export const TeacherPresentationSlotsTab = ({ onOpenGrading }: TeacherPresentationSlotsTabProps) => {
   const { getGroupById, loading: groupsLoading } = useGroups();
   const [slots, setSlots] = useState<PresentationSlot[]>([]);
+  const [examGrades, setExamGrades] = useState<ExamGrade[]>([]);
   const [examType, setExamType] = useState(EXAM_TYPES[0]);
   const [datesByExam, setDatesByExam] = useState<Record<string, Date[]>>({});
   const selectedDates = datesByExam[examType] ?? [];
@@ -67,6 +83,37 @@ export const TeacherPresentationSlotsTab = () => {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  // Midterm / Final grades decide which slots show as "Presented". The rubric
+  // dialog writes one grades row per group member under the exam's name, so a
+  // slot is presented once any current member of its group has that row.
+  const fetchExamGrades = async () => {
+    const { data } = await supabase
+      .from('grades')
+      .select('student_id, assignment_name, score, max_score')
+      .in('assignment_name', EXAM_TYPES);
+    if (data) setExamGrades(data as ExamGrade[]);
+  };
+
+  useEffect(() => {
+    fetchExamGrades();
+    const channel = supabase
+      .channel('presentation-slots-grades')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'grades' }, () => fetchExamGrades())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  /** Grade recorded for the group holding this slot, for this slot's exam - if any. */
+  const presentedGrade = (slot: PresentationSlot): ExamGrade | null => {
+    if (!slot.booked_group_id) return null;
+    const group = getGroupById(slot.booked_group_id);
+    if (!group) return null;
+    const memberIds = new Set(group.members.map(member => member.id));
+    return examGrades.find(g => g.assignment_name === slot.exam_type && memberIds.has(g.student_id)) ?? null;
+  };
 
   const addSlot = async () => {
     if (busy) return;
@@ -348,26 +395,42 @@ export const TeacherPresentationSlotsTab = () => {
                           if (sectionSlots.length === 0) return null;
                           return (
                             <div key={sec ?? 'all'}>
-                              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                <Badge variant="secondary" className="text-xs">{sec ?? 'All Sections'}</Badge>
+                              <div className="mb-3 flex flex-wrap items-center gap-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground sm:text-base">
+                                <Badge variant="secondary" className="px-3 py-1 text-sm sm:text-base">{sec ?? 'All Sections'}</Badge>
                                 {sec && SECTION_WINDOWS[sec] && (
-                                  <span>{SECTION_WINDOWS[sec].start}-{SECTION_WINDOWS[sec].end}</span>
+                                  <span className="tabular-nums">{SECTION_WINDOWS[sec].start}-{SECTION_WINDOWS[sec].end}</span>
                                 )}
                                 <span className="normal-case">
                                   {sectionSlots.filter(s => s.booked_group_id).length}/{sectionSlots.length} booked
                                 </span>
+                                {sectionSlots.some(s => presentedGrade(s)) && (
+                                  <span className="normal-case text-accent">
+                                    {sectionSlots.filter(s => presentedGrade(s)).length} presented
+                                  </span>
+                                )}
                               </div>
                               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                                 {sectionSlots.map(slot => {
                                   const group = slot.booked_group_id ? getGroupById(slot.booked_group_id) : null;
                                   const orphaned = isOrphaned(slot);
+                                  const grade = presentedGrade(slot);
+                                  // Booked by a live group: the card itself opens Grading for that group.
+                                  const clickable = !!group && !!onOpenGrading;
+                                  const tone = orphaned
+                                    ? 'border-amber-500/60 bg-amber-500/10'
+                                    : grade
+                                      ? 'border-accent bg-accent/10'
+                                      : slot.booked_group_id ? 'border-success bg-success/10' : 'border-primary/30 bg-card';
                                   return (
                                     <div
                                       key={slot.id}
-                                      className={`flex items-center justify-between gap-2 rounded-lg border p-3 ${
-                                        orphaned
-                                          ? 'border-amber-500/60 bg-amber-500/10'
-                                          : slot.booked_group_id ? 'border-success bg-success/10' : 'border-primary/30 bg-card'
+                                      role={clickable ? 'button' : undefined}
+                                      tabIndex={clickable ? 0 : undefined}
+                                      onClick={clickable ? () => onOpenGrading(group.id) : undefined}
+                                      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenGrading(group.id); } } : undefined}
+                                      title={clickable ? (grade ? `Open Grading to edit ${group.name}'s ${slot.exam_type} score` : `Open Grading to score ${group.name}`) : undefined}
+                                      className={`flex items-center justify-between gap-2 rounded-lg border p-3 transition-colors ${tone} ${
+                                        clickable ? 'cursor-pointer hover:shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''
                                       }`}
                                     >
                                       <div className="min-w-0">
@@ -380,7 +443,7 @@ export const TeacherPresentationSlotsTab = () => {
                                               Deleted group
                                             </span>
                                           ) : slot.booked_group_id ? (
-                                            <span className="flex items-center gap-1.5 truncate text-success">
+                                            <span className={`flex items-center gap-1.5 truncate ${grade ? 'text-accent' : 'text-success'}`}>
                                               <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
                                               {/* While groups are still loading, say so rather than
                                                   flashing a misleading name-less "Booked". */}
@@ -390,6 +453,13 @@ export const TeacherPresentationSlotsTab = () => {
                                             <span>Available</span>
                                           )}
                                         </div>
+                                        {grade && (
+                                          <div className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-accent sm:text-base">
+                                            <CheckCircle2 className="h-4 w-4 shrink-0" />
+                                            Presented
+                                            <span className="font-normal text-muted-foreground">· {grade.score}/{grade.max_score}</span>
+                                          </div>
+                                        )}
                                       </div>
                                       <div className="flex shrink-0 items-center gap-1">
                                         {orphaned && (
@@ -397,7 +467,7 @@ export const TeacherPresentationSlotsTab = () => {
                                             variant="ghost"
                                             size="sm"
                                             className="h-8 w-8 p-0 text-amber-700 hover:text-amber-800 dark:text-amber-300"
-                                            onClick={() => releaseSlots([slot])}
+                                            onClick={(e) => { e.stopPropagation(); releaseSlots([slot]); }}
                                             title="Release this slot so a group can book it"
                                             aria-label="Release slot"
                                           >
@@ -408,8 +478,9 @@ export const TeacherPresentationSlotsTab = () => {
                                           variant="ghost"
                                           size="sm"
                                           className="h-8 w-8 shrink-0 p-0 text-destructive hover:text-destructive"
-                                          onClick={() => deleteSlot(slot)}
+                                          onClick={(e) => { e.stopPropagation(); deleteSlot(slot); }}
                                           title={slot.booked_group_id ? 'Delete slot (frees the booking)' : 'Delete slot'}
+                                          aria-label="Delete slot"
                                         >
                                           <Trash2 className="w-4 h-4" />
                                         </Button>
