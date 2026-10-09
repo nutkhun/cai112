@@ -269,9 +269,30 @@ async function handleDb(request, env) {
     }
     if (op === 'delete') {
       const binds = [];
-      const sql = 'DELETE FROM ' + quoted + whereClause(body.filters, binds) + ' RETURNING *';
-      const result = await bindAll(env.DB.prepare(sql), binds).all();
-      const rows = (result.results || []).map(function (r) { return decodeRow(table, r); });
+      const where = whereClause(body.filters, binds);
+      const statements = [];
+      if (table === 'groups') {
+        // A deleted group must give back any presentation slot it was holding.
+        // Otherwise the slot keeps a booked_group_id that no row resolves to:
+        // the teacher sees a nameless "Booked", every student sees
+        // "Unavailable", and the slot can never be claimed again - not even by
+        // the same students after they re-form their group under a new id.
+        // Done in the same batch as the delete so the two can't drift apart.
+        const releaseBinds = [];
+        const releaseWhere = whereClause(body.filters, releaseBinds);
+        statements.push(bindAll(env.DB.prepare(
+          'UPDATE presentation_slots SET booked_group_id = NULL' +
+          ' WHERE booked_group_id IN (SELECT id FROM groups' + releaseWhere + ') RETURNING id'
+        ), releaseBinds));
+      }
+      statements.push(bindAll(env.DB.prepare('DELETE FROM ' + quoted + where + ' RETURNING *'), binds));
+      const results = await env.DB.batch(statements);
+      const deleted = results[results.length - 1];
+      const rows = (deleted.results || []).map(function (r) { return decodeRow(table, r); });
+      if (table === 'groups') {
+        const released = (results[0].results || []).map(function (r) { return r.id; });
+        await logChanges(env, 'presentation_slots', 'UPDATE', released);
+      }
       await logChanges(env, table, 'DELETE', rows.map(function (r) { return r.id; }));
       return json({ data: rows });
     }
