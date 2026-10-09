@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CalendarClock, Plus, Trash2, Users, X } from 'lucide-react';
+import { CalendarClock, Plus, Trash2, Users, X, AlertTriangle, Unlock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SECTION_WINDOWS, toMinutes, toTime, type PresentationSlot } from '@/lib/presentation-slots';
 import { PresentationDateGroup, PresentationSlotIdentity } from './PresentationSlotDisplay';
@@ -26,9 +26,25 @@ export type { PresentationSlot } from '@/lib/presentation-slots';
 
 const EXAM_TYPES = ['Midterm Presentation', 'Final Project'];
 
-export const TeacherPresentationSlotsTab = () => {
-  const { getGroupById } = useGroups();
+interface ExamGrade {
+  student_id: string;
+  assignment_name: string;
+  score: number;
+  max_score: number;
+}
+
+interface TeacherPresentationSlotsTabProps {
+  /**
+   * Called when the teacher clicks a booked slot. Receives the group's id so
+   * the dashboard can jump to the Grading tab filtered to that group.
+   */
+  onOpenGrading?: (groupId: string) => void;
+}
+
+export const TeacherPresentationSlotsTab = ({ onOpenGrading }: TeacherPresentationSlotsTabProps) => {
+  const { getGroupById, loading: groupsLoading } = useGroups();
   const [slots, setSlots] = useState<PresentationSlot[]>([]);
+  const [examGrades, setExamGrades] = useState<ExamGrade[]>([]);
   const [examType, setExamType] = useState(EXAM_TYPES[0]);
   const [datesByExam, setDatesByExam] = useState<Record<string, Date[]>>({});
   const selectedDates = datesByExam[examType] ?? [];
@@ -67,6 +83,37 @@ export const TeacherPresentationSlotsTab = () => {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  // Midterm / Final grades decide which slots show as "Presented". The rubric
+  // dialog writes one grades row per group member under the exam's name, so a
+  // slot is presented once any current member of its group has that row.
+  const fetchExamGrades = async () => {
+    const { data } = await supabase
+      .from('grades')
+      .select('student_id, assignment_name, score, max_score')
+      .in('assignment_name', EXAM_TYPES);
+    if (data) setExamGrades(data as ExamGrade[]);
+  };
+
+  useEffect(() => {
+    fetchExamGrades();
+    const channel = supabase
+      .channel('presentation-slots-grades')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'grades' }, () => fetchExamGrades())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  /** Grade recorded for the group holding this slot, for this slot's exam - if any. */
+  const presentedGrade = (slot: PresentationSlot): ExamGrade | null => {
+    if (!slot.booked_group_id) return null;
+    const group = getGroupById(slot.booked_group_id);
+    if (!group) return null;
+    const memberIds = new Set(group.members.map(member => member.id));
+    return examGrades.find(g => g.assignment_name === slot.exam_type && memberIds.has(g.student_id)) ?? null;
+  };
 
   const addSlot = async () => {
     if (busy) return;
@@ -156,6 +203,28 @@ export const TeacherPresentationSlotsTab = () => {
     const { error } = await supabase.from('presentation_slots').delete().eq('id', slot.id);
     if (error) toast.error('Failed to delete slot');
     else fetchSlots();
+  };
+
+  /**
+   * A slot whose booked_group_id no longer matches any group. This happened
+   * when a group disbanded (or was re-formed under a new id) after booking:
+   * the backend now releases slots on group delete, but bookings made before
+   * that fix can still be stranded, and only the teacher can see it.
+   */
+  const isOrphaned = (slot: PresentationSlot) =>
+    !!slot.booked_group_id && !groupsLoading && !getGroupById(slot.booked_group_id);
+
+  const releaseSlots = async (toRelease: PresentationSlot[]) => {
+    if (toRelease.length === 0) return;
+    const { error } = await supabase
+      .from('presentation_slots')
+      .update({ booked_group_id: null })
+      .in('id', toRelease.map(slot => slot.id));
+    if (error) toast.error('Failed to release the booking');
+    else {
+      toast.success(toRelease.length === 1 ? 'Slot released - it is bookable again' : `Released ${toRelease.length} slots - they are bookable again`);
+      fetchSlots();
+    }
   };
 
   return (
@@ -280,6 +349,7 @@ export const TeacherPresentationSlotsTab = () => {
 
       {EXAM_TYPES.map(type => {
         const typeSlots = slots.filter(s => s.exam_type === type);
+        const orphans = typeSlots.filter(isOrphaned);
         return (
           <Card key={type} className="shadow-soft border-0">
             <CardHeader>
@@ -292,6 +362,26 @@ export const TeacherPresentationSlotsTab = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
+              {orphans.length > 0 && (
+                <div
+                  role="alert"
+                  className="flex flex-col gap-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <p>
+                      <span className="font-semibold">
+                        {orphans.length === 1 ? '1 slot is' : `${orphans.length} slots are`} held by a group that no longer exists.
+                      </span>{' '}
+                      The group disbanded or re-formed after booking. Students see {orphans.length === 1 ? 'it' : 'them'} as unavailable and nobody can book {orphans.length === 1 ? 'it' : 'them'}. Releasing makes {orphans.length === 1 ? 'it' : 'them'} bookable again.
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" className="shrink-0 gap-2 border-amber-500/60" onClick={() => releaseSlots(orphans)}>
+                    <Unlock className="h-4 w-4" />
+                    Release {orphans.length === 1 ? 'slot' : `all ${orphans.length}`}
+                  </Button>
+                </div>
+              )}
               {typeSlots.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">No slots yet - add some above</p>
               ) : (
@@ -305,48 +395,96 @@ export const TeacherPresentationSlotsTab = () => {
                           if (sectionSlots.length === 0) return null;
                           return (
                             <div key={sec ?? 'all'}>
-                              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                <Badge variant="secondary" className="text-xs">{sec ?? 'All Sections'}</Badge>
+                              <div className="mb-3 flex flex-wrap items-center gap-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground sm:text-base">
+                                <Badge variant="secondary" className="px-3 py-1 text-sm sm:text-base">{sec ?? 'All Sections'}</Badge>
                                 {sec && SECTION_WINDOWS[sec] && (
-                                  <span>{SECTION_WINDOWS[sec].start}-{SECTION_WINDOWS[sec].end}</span>
+                                  <span className="tabular-nums">{SECTION_WINDOWS[sec].start}-{SECTION_WINDOWS[sec].end}</span>
                                 )}
                                 <span className="normal-case">
                                   {sectionSlots.filter(s => s.booked_group_id).length}/{sectionSlots.length} booked
                                 </span>
+                                {sectionSlots.some(s => presentedGrade(s)) && (
+                                  <span className="normal-case text-accent">
+                                    {sectionSlots.filter(s => presentedGrade(s)).length} presented
+                                  </span>
+                                )}
                               </div>
                               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                                 {sectionSlots.map(slot => {
                                   const group = slot.booked_group_id ? getGroupById(slot.booked_group_id) : null;
+                                  const orphaned = isOrphaned(slot);
+                                  const grade = presentedGrade(slot);
+                                  // Booked by a live group: the card itself opens Grading for that group.
+                                  const clickable = !!group && !!onOpenGrading;
+                                  const tone = orphaned
+                                    ? 'border-amber-500/60 bg-amber-500/10'
+                                    : grade
+                                      ? 'border-accent bg-accent/10'
+                                      : slot.booked_group_id ? 'border-success bg-success/10' : 'border-primary/30 bg-card';
                                   return (
                                     <div
                                       key={slot.id}
-                                      className={`flex items-center justify-between gap-2 rounded-lg border p-3 ${
-                                        slot.booked_group_id ? 'border-success bg-success/10' : 'border-primary/30 bg-card'
+                                      role={clickable ? 'button' : undefined}
+                                      tabIndex={clickable ? 0 : undefined}
+                                      onClick={clickable ? () => onOpenGrading(group.id) : undefined}
+                                      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenGrading(group.id); } } : undefined}
+                                      title={clickable ? (grade ? `Open Grading to edit ${group.name}'s ${slot.exam_type} score` : `Open Grading to score ${group.name}`) : undefined}
+                                      className={`flex items-center justify-between gap-2 rounded-lg border p-3 transition-colors ${tone} ${
+                                        clickable ? 'cursor-pointer hover:shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''
                                       }`}
                                     >
                                       <div className="min-w-0">
                                         <PresentationSlotIdentity slot={slot} />
                                         <div className="mt-2 flex flex-wrap items-center gap-[9px] text-sm text-muted-foreground sm:text-base">
                                           <Badge variant="secondary" className="px-[15px] py-[3px] text-sm sm:text-base">{slot.section || 'All'}</Badge>
-                                          {slot.booked_group_id ? (
-                                            <span className="flex items-center gap-1.5 truncate text-success">
+                                          {orphaned ? (
+                                            <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+                                              <AlertTriangle className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+                                              Deleted group
+                                            </span>
+                                          ) : slot.booked_group_id ? (
+                                            <span className={`flex items-center gap-1.5 truncate ${grade ? 'text-accent' : 'text-success'}`}>
                                               <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-                                              {group?.name || 'Booked'}
+                                              {/* While groups are still loading, say so rather than
+                                                  flashing a misleading name-less "Booked". */}
+                                              {group?.name ?? (groupsLoading ? 'Loading…' : 'Booked')}
                                             </span>
                                           ) : (
                                             <span>Available</span>
                                           )}
                                         </div>
+                                        {grade && (
+                                          <div className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-accent sm:text-base">
+                                            <CheckCircle2 className="h-4 w-4 shrink-0" />
+                                            Presented
+                                            <span className="font-normal text-muted-foreground">· {grade.score}/{grade.max_score}</span>
+                                          </div>
+                                        )}
                                       </div>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 shrink-0 p-0 text-destructive hover:text-destructive"
-                                        onClick={() => deleteSlot(slot)}
-                                        title={slot.booked_group_id ? 'Delete slot (frees the booking)' : 'Delete slot'}
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </Button>
+                                      <div className="flex shrink-0 items-center gap-1">
+                                        {orphaned && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 text-amber-700 hover:text-amber-800 dark:text-amber-300"
+                                            onClick={(e) => { e.stopPropagation(); releaseSlots([slot]); }}
+                                            title="Release this slot so a group can book it"
+                                            aria-label="Release slot"
+                                          >
+                                            <Unlock className="w-4 h-4" />
+                                          </Button>
+                                        )}
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 w-8 shrink-0 p-0 text-destructive hover:text-destructive"
+                                          onClick={(e) => { e.stopPropagation(); deleteSlot(slot); }}
+                                          title={slot.booked_group_id ? 'Delete slot (frees the booking)' : 'Delete slot'}
+                                          aria-label="Delete slot"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                      </div>
                                     </div>
                                   );
                                 })}

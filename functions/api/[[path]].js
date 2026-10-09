@@ -137,6 +137,60 @@ async function logChanges(env, table, op, ids) {
   await env.DB.batch(clean.map(function (id) { return stmt.bind(table, op, String(id)); }));
 }
 
+// ---------------------------------------------------------------------------
+// POLICY: a presentation slot is held only by a group that exists and has at
+// least one member. The moment a group dissolves - its row is deleted, or its
+// last member leaves, is moved, or is removed by the teacher - every slot it
+// held is released in the same transaction. This is enforced here, in the
+// API, so no client code path can leave a slot pointing at a dead group.
+// (Before this, such slots showed a nameless "Booked" to the teacher and
+// "Unavailable" to every student, and could never be claimed again.)
+// ---------------------------------------------------------------------------
+
+// Statement that frees every slot held by any of the given group ids.
+function releaseSlotsStatement(env, groupIds) {
+  const marks = groupIds.map(function () { return '?'; }).join(', ');
+  return bindAll(env.DB.prepare(
+    'UPDATE presentation_slots SET booked_group_id = NULL WHERE booked_group_id IN (' + marks + ') RETURNING id'
+  ), groupIds);
+}
+
+// Which groups do the students matching these filters belong to right now?
+// Called BEFORE a students update/delete so we know which groups might be
+// left empty by it.
+async function groupsOfStudents(env, filters) {
+  const binds = [];
+  const where = whereClause(filters, binds);
+  const sql = 'SELECT DISTINCT group_id FROM students' +
+    (where ? where + ' AND group_id IS NOT NULL' : ' WHERE group_id IS NOT NULL');
+  const result = await bindAll(env.DB.prepare(sql), binds).all();
+  return (result.results || []).map(function (r) { return r.group_id; }).filter(Boolean);
+}
+
+// After students have left the given groups: delete any that are now empty,
+// releasing their slots in the same batch. Returns the ids dissolved.
+async function dissolveEmptyGroups(env, candidateGroupIds) {
+  const ids = Array.from(new Set((candidateGroupIds || []).filter(Boolean)));
+  if (ids.length === 0) return [];
+  const marks = ids.map(function () { return '?'; }).join(', ');
+  const stillPopulated = await bindAll(env.DB.prepare(
+    'SELECT DISTINCT group_id FROM students WHERE group_id IN (' + marks + ')'
+  ), ids).all();
+  const populated = new Set((stillPopulated.results || []).map(function (r) { return r.group_id; }));
+  const empty = ids.filter(function (id) { return !populated.has(id); });
+  if (empty.length === 0) return [];
+  const emptyMarks = empty.map(function () { return '?'; }).join(', ');
+  const results = await env.DB.batch([
+    releaseSlotsStatement(env, empty),
+    bindAll(env.DB.prepare('DELETE FROM groups WHERE id IN (' + emptyMarks + ') RETURNING id'), empty),
+  ]);
+  const released = (results[0].results || []).map(function (r) { return r.id; });
+  const deleted = (results[1].results || []).map(function (r) { return r.id; });
+  await logChanges(env, 'presentation_slots', 'UPDATE', released);
+  await logChanges(env, 'groups', 'DELETE', deleted);
+  return deleted;
+}
+
 // Additive, repeatable migration: existing identities and bookings are preserved.
 async function ensurePresentationEndTimes(env) {
   const columns = await env.DB.prepare('PRAGMA table_info(presentation_slots)').all();
@@ -259,20 +313,45 @@ async function handleDb(request, env) {
       const record = Object.assign({}, body.values || {});
       if (Object.keys(record).length === 0) return json({ data: [] });
       if (HAS_UPDATED_AT[table]) record.updated_at = new Date().toISOString();
+      // A student leaving / switching group may empty the group they were in.
+      const movingStudents = table === 'students' && Object.prototype.hasOwnProperty.call(record, 'group_id');
+      const previousGroups = movingStudents ? await groupsOfStudents(env, body.filters) : [];
       const cols = Object.keys(record);
       const binds = cols.map(function (c) { return bindValue(record[c]); });
       const sql = 'UPDATE ' + quoted + ' SET ' + cols.map(function (c) { return ident(c) + ' = ?'; }).join(', ') + whereClause(body.filters, binds) + ' RETURNING *';
       const result = await bindAll(env.DB.prepare(sql), binds).all();
       const rows = (result.results || []).map(function (r) { return decodeRow(table, r); });
       await logChanges(env, table, 'UPDATE', rows.map(function (r) { return r.id; }));
+      if (movingStudents) {
+        await dissolveEmptyGroups(env, previousGroups.filter(function (id) { return id !== record.group_id; }));
+      }
       return json({ data: rows });
     }
     if (op === 'delete') {
       const binds = [];
-      const sql = 'DELETE FROM ' + quoted + whereClause(body.filters, binds) + ' RETURNING *';
-      const result = await bindAll(env.DB.prepare(sql), binds).all();
-      const rows = (result.results || []).map(function (r) { return decodeRow(table, r); });
+      const where = whereClause(body.filters, binds);
+      // Deleting students may empty the groups they were in.
+      const previousGroups = table === 'students' ? await groupsOfStudents(env, body.filters) : [];
+      const statements = [];
+      if (table === 'groups') {
+        // Deleting a group outright releases its slots in the same batch.
+        const releaseBinds = [];
+        const releaseWhere = whereClause(body.filters, releaseBinds);
+        statements.push(bindAll(env.DB.prepare(
+          'UPDATE presentation_slots SET booked_group_id = NULL' +
+          ' WHERE booked_group_id IN (SELECT id FROM groups' + releaseWhere + ') RETURNING id'
+        ), releaseBinds));
+      }
+      statements.push(bindAll(env.DB.prepare('DELETE FROM ' + quoted + where + ' RETURNING *'), binds));
+      const results = await env.DB.batch(statements);
+      const deleted = results[results.length - 1];
+      const rows = (deleted.results || []).map(function (r) { return decodeRow(table, r); });
+      if (table === 'groups') {
+        const released = (results[0].results || []).map(function (r) { return r.id; });
+        await logChanges(env, 'presentation_slots', 'UPDATE', released);
+      }
       await logChanges(env, table, 'DELETE', rows.map(function (r) { return r.id; }));
+      if (table === 'students') await dissolveEmptyGroups(env, previousGroups);
       return json({ data: rows });
     }
     return json({ error: 'Unknown op: ' + op }, 400);

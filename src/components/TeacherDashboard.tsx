@@ -3231,7 +3231,18 @@ export const TeacherDashboard = ({ onSwitchView }: TeacherDashboardProps) => {
 
           {/* Presentation Slots Tab */}
           <TabsContent value="slots" className="animate-fade-in">
-            <TeacherPresentationSlotsTab />
+            <TeacherPresentationSlotsTab
+              onOpenGrading={(groupId) => {
+                // Jump to Grading showing only this group, with any stale
+                // filters cleared so the group can't be hidden by them.
+                setGradingGroupFilter(groupId);
+                setGradingSectionFilter('all');
+                setGradingMissingFilter('all');
+                setGradingSearchQuery('');
+                setActiveTab('grading');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
           </TabsContent>
 
           {/* Messages Tab */}
