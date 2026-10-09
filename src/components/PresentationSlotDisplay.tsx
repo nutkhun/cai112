@@ -19,8 +19,9 @@ export function PresentationDateGroup({ date, examType, slots, children }: {
   return (
     <section aria-label={`${examType} — ${dateLabel}`} className="rounded-xl border border-border/60 bg-muted/20 p-3 sm:p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-sm font-semibold text-foreground sm:text-base">{dateLabel}</h4>
-        <Badge variant="secondary" className="text-xs font-normal">
+        {/* The day is the primary landmark the teacher scans for - give it heading weight. */}
+        <h4 className="font-display text-lg font-bold text-foreground sm:text-2xl">{dateLabel}</h4>
+        <Badge variant="secondary" className="text-sm font-normal">
           {slots.filter(slot => !slot.booked_group_id).length} of {slots.length} available
         </Badge>
       </div>
