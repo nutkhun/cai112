@@ -82,3 +82,103 @@ test('deleting rows from any other table does not touch bookings', async t => {
   assert.equal(result.status, 200);
   assert.equal(bookedBy('s-mid'), 'mee');
 });
+
+// ---------------------------------------------------------------------------
+// Policy: a group dissolves - and gives back its slots - the moment its last
+// member leaves, switches group, or is deleted. Enforced by the API, not the UI.
+// ---------------------------------------------------------------------------
+
+function setupWithStudents(t) {
+  const base = setup(t);
+  base.sqlite.exec('CREATE TABLE students (id TEXT PRIMARY KEY, name TEXT, student_id TEXT, section TEXT, group_id TEXT)');
+  const seedStudent = (id, group_id) =>
+    base.sqlite.prepare('INSERT INTO students (id, name, student_id, section, group_id) VALUES (?, ?, ?, ?, ?)')
+      .run(id, id.toUpperCase(), '16' + id, '458B', group_id);
+  const groupExists = id => !!base.sqlite.prepare('SELECT 1 FROM groups WHERE id = ?').get(id);
+  return { ...base, seedStudent, groupExists };
+}
+
+test('last member leaving dissolves the group and releases its slot', async t => {
+  const { call, seedGroup, seedSlot, seedStudent, bookedBy, groupExists, changes } = setupWithStudents(t);
+  seedGroup('ghost', 'Soon to vanish');
+  seedStudent('ann', 'ghost');
+  seedSlot('s1', 'ghost');
+
+  const result = await call({ table: 'students', op: 'update', values: { group_id: null }, filters: [{ col: 'id', op: 'eq', val: 'ann' }] });
+
+  assert.equal(result.status, 200);
+  assert.equal(groupExists('ghost'), false, 'empty group is deleted');
+  assert.equal(bookedBy('s1'), null, 'its slot is released');
+  assert.deepEqual(changes().map(c => c.tbl + ':' + c.op + ':' + c.row_id), [
+    'students:UPDATE:ann', 'presentation_slots:UPDATE:s1', 'groups:DELETE:ghost',
+  ]);
+});
+
+test('a member leaving a group that still has others keeps the group and the slot', async t => {
+  const { call, seedGroup, seedSlot, seedStudent, bookedBy, groupExists } = setupWithStudents(t);
+  seedGroup('duo', 'Duo');
+  seedStudent('ann', 'duo');
+  seedStudent('bob', 'duo');
+  seedSlot('s1', 'duo');
+
+  await call({ table: 'students', op: 'update', values: { group_id: null }, filters: [{ col: 'id', op: 'eq', val: 'ann' }] });
+
+  assert.equal(groupExists('duo'), true);
+  assert.equal(bookedBy('s1'), 'duo');
+});
+
+test('switching to another group dissolves the one left behind, never the destination', async t => {
+  const { call, seedGroup, seedSlot, seedStudent, bookedBy, groupExists } = setupWithStudents(t);
+  seedGroup('old', 'Old');
+  seedGroup('new', 'New');
+  seedStudent('ann', 'old');
+  seedStudent('cat', 'new');
+  seedSlot('s-old', 'old');
+  seedSlot('s-new', 'new');
+
+  await call({ table: 'students', op: 'update', values: { group_id: 'new' }, filters: [{ col: 'id', op: 'eq', val: 'ann' }] });
+
+  assert.equal(groupExists('old'), false);
+  assert.equal(bookedBy('s-old'), null);
+  assert.equal(groupExists('new'), true);
+  assert.equal(bookedBy('s-new'), 'new');
+});
+
+test('teacher deleting the last member dissolves the group and releases its slot', async t => {
+  const { call, seedGroup, seedSlot, seedStudent, bookedBy, groupExists } = setupWithStudents(t);
+  seedGroup('solo', 'Solo');
+  seedStudent('ann', 'solo');
+  seedSlot('s1', 'solo');
+
+  const result = await call({ table: 'students', op: 'delete', filters: [{ col: 'id', op: 'eq', val: 'ann' }] });
+
+  assert.equal(result.status, 200);
+  assert.equal(groupExists('solo'), false);
+  assert.equal(bookedBy('s1'), null);
+});
+
+test('a brand-new empty group (creator not yet attached) is left alone by unrelated student updates', async t => {
+  const { call, seedGroup, seedSlot, seedStudent, groupExists } = setupWithStudents(t);
+  seedGroup('fresh', 'Just created');   // createGroup inserts the row before attaching the creator
+  seedGroup('other', 'Other');
+  seedStudent('ann', 'other');
+  seedStudent('bob', 'other');
+  seedSlot('s1', null);
+
+  await call({ table: 'students', op: 'update', values: { group_id: null }, filters: [{ col: 'id', op: 'eq', val: 'ann' }] });
+
+  assert.equal(groupExists('fresh'), true, 'only groups the moving student belonged to are examined');
+  assert.equal(groupExists('other'), true);
+});
+
+test('updating a student field other than group_id never dissolves anything', async t => {
+  const { call, seedGroup, seedSlot, seedStudent, bookedBy, groupExists } = setupWithStudents(t);
+  seedGroup('g', 'G');
+  seedStudent('ann', 'g');
+  seedSlot('s1', 'g');
+
+  await call({ table: 'students', op: 'update', values: { name: 'Renamed' }, filters: [{ col: 'id', op: 'eq', val: 'ann' }] });
+
+  assert.equal(groupExists('g'), true);
+  assert.equal(bookedBy('s1'), 'g');
+});
