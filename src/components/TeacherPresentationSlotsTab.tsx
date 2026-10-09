@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { CalendarClock, Plus, Trash2, Users, X } from 'lucide-react';
+import { CalendarClock, Plus, Trash2, Users, X, AlertTriangle, Unlock } from 'lucide-react';
 import { toast } from 'sonner';
 import { SECTION_WINDOWS, toMinutes, toTime, type PresentationSlot } from '@/lib/presentation-slots';
 import { PresentationDateGroup, PresentationSlotIdentity } from './PresentationSlotDisplay';
@@ -27,7 +27,7 @@ export type { PresentationSlot } from '@/lib/presentation-slots';
 const EXAM_TYPES = ['Midterm Presentation', 'Final Project'];
 
 export const TeacherPresentationSlotsTab = () => {
-  const { getGroupById } = useGroups();
+  const { getGroupById, loading: groupsLoading } = useGroups();
   const [slots, setSlots] = useState<PresentationSlot[]>([]);
   const [examType, setExamType] = useState(EXAM_TYPES[0]);
   const [datesByExam, setDatesByExam] = useState<Record<string, Date[]>>({});
@@ -158,6 +158,28 @@ export const TeacherPresentationSlotsTab = () => {
     else fetchSlots();
   };
 
+  /**
+   * A slot whose booked_group_id no longer matches any group. This happened
+   * when a group disbanded (or was re-formed under a new id) after booking:
+   * the backend now releases slots on group delete, but bookings made before
+   * that fix can still be stranded, and only the teacher can see it.
+   */
+  const isOrphaned = (slot: PresentationSlot) =>
+    !!slot.booked_group_id && !groupsLoading && !getGroupById(slot.booked_group_id);
+
+  const releaseSlots = async (toRelease: PresentationSlot[]) => {
+    if (toRelease.length === 0) return;
+    const { error } = await supabase
+      .from('presentation_slots')
+      .update({ booked_group_id: null })
+      .in('id', toRelease.map(slot => slot.id));
+    if (error) toast.error('Failed to release the booking');
+    else {
+      toast.success(toRelease.length === 1 ? 'Slot released - it is bookable again' : `Released ${toRelease.length} slots - they are bookable again`);
+      fetchSlots();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card className="shadow-soft border-0">
@@ -280,6 +302,7 @@ export const TeacherPresentationSlotsTab = () => {
 
       {EXAM_TYPES.map(type => {
         const typeSlots = slots.filter(s => s.exam_type === type);
+        const orphans = typeSlots.filter(isOrphaned);
         return (
           <Card key={type} className="shadow-soft border-0">
             <CardHeader>
@@ -292,6 +315,26 @@ export const TeacherPresentationSlotsTab = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
+              {orphans.length > 0 && (
+                <div
+                  role="alert"
+                  className="flex flex-col gap-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <p>
+                      <span className="font-semibold">
+                        {orphans.length === 1 ? '1 slot is' : `${orphans.length} slots are`} held by a group that no longer exists.
+                      </span>{' '}
+                      The group disbanded or re-formed after booking. Students see {orphans.length === 1 ? 'it' : 'them'} as unavailable and nobody can book {orphans.length === 1 ? 'it' : 'them'}. Releasing makes {orphans.length === 1 ? 'it' : 'them'} bookable again.
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" className="shrink-0 gap-2 border-amber-500/60" onClick={() => releaseSlots(orphans)}>
+                    <Unlock className="h-4 w-4" />
+                    Release {orphans.length === 1 ? 'slot' : `all ${orphans.length}`}
+                  </Button>
+                </div>
+              )}
               {typeSlots.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">No slots yet - add some above</p>
               ) : (
@@ -317,36 +360,60 @@ export const TeacherPresentationSlotsTab = () => {
                               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                                 {sectionSlots.map(slot => {
                                   const group = slot.booked_group_id ? getGroupById(slot.booked_group_id) : null;
+                                  const orphaned = isOrphaned(slot);
                                   return (
                                     <div
                                       key={slot.id}
                                       className={`flex items-center justify-between gap-2 rounded-lg border p-3 ${
-                                        slot.booked_group_id ? 'border-success bg-success/10' : 'border-primary/30 bg-card'
+                                        orphaned
+                                          ? 'border-amber-500/60 bg-amber-500/10'
+                                          : slot.booked_group_id ? 'border-success bg-success/10' : 'border-primary/30 bg-card'
                                       }`}
                                     >
                                       <div className="min-w-0">
                                         <PresentationSlotIdentity slot={slot} />
                                         <div className="mt-2 flex flex-wrap items-center gap-[9px] text-sm text-muted-foreground sm:text-base">
                                           <Badge variant="secondary" className="px-[15px] py-[3px] text-sm sm:text-base">{slot.section || 'All'}</Badge>
-                                          {slot.booked_group_id ? (
+                                          {orphaned ? (
+                                            <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+                                              <AlertTriangle className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+                                              Deleted group
+                                            </span>
+                                          ) : slot.booked_group_id ? (
                                             <span className="flex items-center gap-1.5 truncate text-success">
                                               <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-                                              {group?.name || 'Booked'}
+                                              {/* While groups are still loading, say so rather than
+                                                  flashing a misleading name-less "Booked". */}
+                                              {group?.name ?? (groupsLoading ? 'Loading…' : 'Booked')}
                                             </span>
                                           ) : (
                                             <span>Available</span>
                                           )}
                                         </div>
                                       </div>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 shrink-0 p-0 text-destructive hover:text-destructive"
-                                        onClick={() => deleteSlot(slot)}
-                                        title={slot.booked_group_id ? 'Delete slot (frees the booking)' : 'Delete slot'}
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </Button>
+                                      <div className="flex shrink-0 items-center gap-1">
+                                        {orphaned && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 text-amber-700 hover:text-amber-800 dark:text-amber-300"
+                                            onClick={() => releaseSlots([slot])}
+                                            title="Release this slot so a group can book it"
+                                            aria-label="Release slot"
+                                          >
+                                            <Unlock className="w-4 h-4" />
+                                          </Button>
+                                        )}
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 w-8 shrink-0 p-0 text-destructive hover:text-destructive"
+                                          onClick={() => deleteSlot(slot)}
+                                          title={slot.booked_group_id ? 'Delete slot (frees the booking)' : 'Delete slot'}
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                      </div>
                                     </div>
                                   );
                                 })}
