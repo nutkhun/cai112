@@ -119,7 +119,7 @@ private struct DigitField: View {
                 .frame(width: 84)
                 .padding(.vertical, 2)
                 .glassPanel(cornerRadius: 14)
-                .shadow(color: Theme.cyan.opacity(hovering ? 0.25 : 0), radius: 10)
+                .shadow(color: Theme.gold.opacity(hovering ? 0.25 : 0), radius: 10)
             stepButton("chevron.down") {
                 value = value <= range.lowerBound ? range.upperBound : value - 1
             }
@@ -171,29 +171,17 @@ private struct RunningView: View {
         let dim = timer.state == .paused ? 0.35 + 0.35 * breath : 1
 
         return ZStack {
-            // Soft aurora behind, for blending.
-            OrbView(time: t, palette: palette, energy: energy, intensity: dim * 0.6, ribbonStrength: 0)
-                .frame(width: 300, height: 300)
+            // The eclipse; its bright rim is the time remaining. Drawn larger than the dial
+            // so the corona and spreading aura can fade out freely.
+            EclipseView(time: t, progress: progress, palette: eclipsePalette, energy: energy, intensity: dim)
+                .frame(width: 380, height: 380)
+                .allowsHitTesting(false)
 
-            // Dark centre with faint drifting stars.
-            Circle()
-                .fill(RadialGradient(colors: [Color.black.opacity(0.55), Color.black.opacity(0)],
-                                     center: .center, startRadius: 40, endRadius: 95))
-                .frame(width: 190, height: 190)
-            ParticleField(time: t, energy: energy, intensity: dim * 0.5)
-                .frame(width: 150, height: 150)
-                .clipShape(Circle())
-
-            // The glowing wave ring: its bright part is the time remaining.
-            WaveRingView(time: t, progress: progress, core: ringCore, glow: ringGlow,
-                         energy: energy, intensity: dim)
-                .frame(width: 300, height: 300)
-
-            // Small marker at 12 o'clock, where the ring starts and ends.
+            // Small marker at 12 o'clock, where the rim starts and ends.
             Image(systemName: "arrowtriangle.down.fill")
                 .font(.system(size: 6))
                 .foregroundStyle(.white.opacity(0.6))
-                .offset(y: -76)
+                .offset(y: -82)
 
             ForEach(reminderMarks, id: \.minutes) { mark in
                 reminderLabel(mark, progress: progress)
@@ -222,16 +210,17 @@ private struct RunningView: View {
         let angle = mark.fraction * 2 * .pi
         let upcoming = mark.fraction < progress
         return ZStack {
-            // Dot on the ring…
+            // Dot on the rim…
             Circle()
                 .fill(upcoming ? Color.white : Color.white.opacity(0.25))
                 .frame(width: 4, height: 4)
-                .offset(x: sin(angle) * 97, y: -cos(angle) * 97)
+                .offset(x: sin(angle) * 91, y: -cos(angle) * 91)
             // …and its label outside it.
             Text("\(mark.minutes)m")
                 .font(.system(size: 9, weight: .medium).monospacedDigit())
-                .foregroundStyle(.white.opacity(upcoming ? 0.75 : 0.25))
-                .offset(x: sin(angle) * 136, y: -cos(angle) * 136)
+                .foregroundStyle(.white.opacity(upcoming ? 0.85 : 0.3))
+                .shadow(color: .black.opacity(0.8), radius: 2)
+                .offset(x: sin(angle) * 118, y: -cos(angle) * 118)
         }
         .animation(.easeInOut(duration: 0.4), value: upcoming)
     }
@@ -316,7 +305,7 @@ private struct RunningView: View {
                 Image(systemName: timer.state == .running ? "pause.fill" : "play.fill")
                     .contentTransition(.symbolEffect(.replace))
             }
-            .buttonStyle(GlassOrbButtonStyle(tint: ringGlow))
+            .buttonStyle(GlassOrbButtonStyle(tint: eclipsePalette.warm))
             .keyboardShortcut(.space, modifiers: [])
             .disabled(!timer.isActive)
             .opacity(timer.isActive ? 1 : 0)
@@ -352,15 +341,6 @@ private struct RunningView: View {
         }
     }
 
-    private var palette: [Color] {
-        switch mood {
-        case .calm: return Theme.calm
-        case .lastMinute: return Theme.warm
-        case .final, .finished: return Theme.alarm
-        case .paused: return Theme.rest
-        }
-    }
-
     private var energy: Double {
         switch mood {
         case .calm: return 0.3
@@ -371,23 +351,23 @@ private struct RunningView: View {
         }
     }
 
-    /// Bright outer edge of the ring.
-    private var ringCore: Color {
+    /// Eclipse colours: gold and blue normally, orange and violet in the last minute,
+    /// red at the end, grey when paused. The play/pause button uses the warm colour.
+    private var eclipsePalette: EclipseView.Palette {
         switch mood {
-        case .calm: return Theme.lavender
-        case .lastMinute: return Color(red: 1.0, green: 0.84, blue: 0.96)
-        case .final, .finished: return Color(red: 1.0, green: 0.82, blue: 0.78)
-        case .paused: return Color(red: 0.75, green: 0.76, blue: 0.86)
-        }
-    }
-
-    /// Inner band, halo and play/pause button colour.
-    private var ringGlow: Color {
-        switch mood {
-        case .calm: return Theme.indigo
-        case .lastMinute: return Theme.magenta
-        case .final, .finished: return Color(red: 1.0, green: 0.22, blue: 0.3)
-        case .paused: return Color(red: 0.4, green: 0.42, blue: 0.6)
+        case .calm:
+            return .init(rim: Theme.cream, warm: Theme.gold, cool: Color(red: 0.22, green: 0.48, blue: 0.95))
+        case .lastMinute:
+            return .init(rim: Color(red: 1.0, green: 0.88, blue: 0.75),
+                         warm: Color(red: 1.0, green: 0.5, blue: 0.22),
+                         cool: Color(red: 0.45, green: 0.28, blue: 0.9))
+        case .final, .finished:
+            return .init(rim: Color(red: 1.0, green: 0.82, blue: 0.75),
+                         warm: Color(red: 1.0, green: 0.28, blue: 0.18),
+                         cool: Color(red: 0.6, green: 0.08, blue: 0.3))
+        case .paused:
+            return .init(rim: Color(white: 0.85), warm: Color(white: 0.55),
+                         cool: Color(red: 0.3, green: 0.34, blue: 0.5))
         }
     }
 
@@ -570,7 +550,7 @@ private struct ReminderSection: View {
             .background(Capsule().fill(Color.white.opacity(0.08)))
             .overlay(Capsule().strokeBorder(
                 LinearGradient(colors: Theme.iridescent, startPoint: .leading, endPoint: .trailing)))
-            .shadow(color: Theme.cyan.opacity(0.4), radius: 6)
+            .shadow(color: Theme.gold.opacity(0.4), radius: 6)
             .transition(.scale.combined(with: .opacity))
             .onChange(of: customFocused) { _, focused in
                 if !focused { closeCustom() }
