@@ -11,11 +11,16 @@ echo "==> Building release binary"
 swift build -c release
 BIN_DIR="$(swift build -c release --show-bin-path)"
 
+if [[ ! -f Resources/AppIcon.icns ]]; then
+    echo "==> Rendering app icon"
+    scripts/make-icon.sh
+fi
+
 echo "==> Assembling ${APP}"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/$APP_NAME" "$APP/Contents/MacOS/$APP_NAME"
-cp Resources/*.png "$APP/Contents/Resources/"
+cp Resources/*.png Resources/AppIcon.icns "$APP/Contents/Resources/"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -26,6 +31,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleDisplayName</key>        <string>${APP_NAME}</string>
     <key>CFBundleExecutable</key>         <string>${APP_NAME}</string>
     <key>CFBundleIdentifier</key>         <string>${BUNDLE_ID}</string>
+    <key>CFBundleIconFile</key>           <string>AppIcon</string>
     <key>CFBundlePackageType</key>        <string>APPL</string>
     <key>CFBundleShortVersionString</key> <string>1.0</string>
     <key>CFBundleVersion</key>            <string>1</string>
