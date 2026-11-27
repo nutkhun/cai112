@@ -8,7 +8,7 @@ struct CountdownApp: App {
     @StateObject private var settings = AppSettings.shared
 
     var body: some Scene {
-        Window("Countdown Timer", id: "main") {
+        Window("Blackhole Timer", id: "main") {
             ContentView()
                 .environmentObject(store)
                 .environmentObject(settings)

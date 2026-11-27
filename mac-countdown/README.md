@@ -1,4 +1,4 @@
-# Countdown Timer (macOS)
+# Blackhole Timer (macOS)
 
 A small native Mac app (SwiftUI) that counts down from a time you set and alerts you when it's over.
 
@@ -27,12 +27,12 @@ Build a double-clickable app:
 
 ```bash
 cd mac-countdown
-./build-app.sh                     # creates "build/Countdown Timer.app"
-open "build/Countdown Timer.app"
+./build-app.sh                     # creates "build/Blackhole Timer.app"
+open "build/Blackhole Timer.app"
 ```
 
-Use `./build-app.sh --install` to also copy it to `/Applications` (it replaces an older `Countdown.app` there).
+Use `./build-app.sh --install` to also copy it to `/Applications` (it replaces the app under its earlier names, `Countdown.app` and `Countdown Timer.app`).
 
-The first time it runs, macOS asks whether Countdown Timer may send notifications. Click **Allow** so you're alerted while the app is in the background.
+The first time it runs, macOS asks whether Blackhole Timer may send notifications. Click **Allow** so you're alerted while the app is in the background.
 
 For development you can also run `swift run` or open `Package.swift` in Xcode. In that mode there's no app bundle, so system notifications are turned off, but the alert window and sound still work.

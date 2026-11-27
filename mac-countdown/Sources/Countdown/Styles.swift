@@ -513,7 +513,7 @@ struct GlassCapsuleButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 30)
                 .padding(.vertical, 11)
@@ -535,7 +535,7 @@ struct GlassCapsuleButtonStyle: ButtonStyle {
     }
 }
 
-/// Glass chip that lights up with an iridescent outline and glow when on.
+/// Pill chip: quiet translucent when off, a solid light pill with dark text when on.
 struct GlassChipStyle: ButtonStyle {
     var isOn = false
 
@@ -551,60 +551,62 @@ struct GlassChipStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 13, weight: isOn ? .semibold : .medium))
                 .lineLimit(1)
-                .padding(.horizontal, 11)
-                .frame(height: 26)
-                .foregroundStyle(isOn ? Color.white : Color.white.opacity(hovering ? 0.85 : 0.55))
-                .background(Capsule().fill(fill))
-                .overlay(Capsule().strokeBorder(stroke, lineWidth: isOn ? 1.2 : 1))
-                .shadow(color: isOn && isEnabled ? Theme.gold.opacity(0.45) : .clear, radius: 6)
-                .scaleEffect(configuration.isPressed ? 0.93 : 1)
-                .opacity(isEnabled ? 1 : 0.35)
+                .padding(.horizontal, 14)
+                .frame(height: 32)
+                .foregroundStyle(textColor)
+                .background(Capsule().fill(fillColor))
+                .overlay(Capsule().strokeBorder(strokeColor))
+                .shadow(color: glowColor, radius: 8)
+                .scaleEffect(configuration.isPressed ? 0.94 : 1)
+                .opacity(isEnabled ? 1 : 0.4)
                 .contentShape(Capsule())
                 .onHover { hovering = $0 }
                 .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
                 .animation(.easeOut(duration: 0.15), value: hovering)
-                .animation(.easeInOut(duration: 0.25), value: isOn)
+                .animation(.easeInOut(duration: 0.2), value: isOn)
         }
 
-        private var fill: AnyShapeStyle {
-            isOn
-                ? AnyShapeStyle(RadialGradient(colors: [Theme.gold.opacity(0.32), Theme.sky.opacity(0.16)],
-                                               center: .center, startRadius: 0, endRadius: 30))
-                : AnyShapeStyle(Color.white.opacity(hovering ? 0.08 : 0.04))
+        private var textColor: Color {
+            isOn ? Color(red: 0.05, green: 0.06, blue: 0.1) : Color.white.opacity(hovering ? 0.95 : 0.75)
         }
 
-        private var stroke: AnyShapeStyle {
-            isOn
-                ? AnyShapeStyle(LinearGradient(colors: Theme.iridescent, startPoint: .leading, endPoint: .trailing))
-                : AnyShapeStyle(Color.white.opacity(0.09))
+        private var fillColor: Color {
+            isOn ? Color.white.opacity(0.92) : Color.white.opacity(hovering ? 0.11 : 0.06)
+        }
+
+        private var strokeColor: Color {
+            Color.white.opacity(isOn ? 0 : 0.08)
+        }
+
+        private var glowColor: Color {
+            isOn && isEnabled ? Color.white.opacity(0.2) : .clear
         }
     }
 }
 
-/// Glowing on/off switch: cyan→violet track with a lit knob when on.
+/// On/off switch: a warm gradient track with a white knob when on, a dim track when off.
 struct GlowSwitchStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                 configuration.isOn.toggle()
             }
         } label: {
             ZStack(alignment: configuration.isOn ? .trailing : .leading) {
                 Capsule()
                     .fill(configuration.isOn
-                          ? AnyShapeStyle(LinearGradient(colors: [Theme.gold, Theme.sky],
+                          ? AnyShapeStyle(LinearGradient(colors: [Theme.gold, Theme.coral],
                                                          startPoint: .leading, endPoint: .trailing))
-                          : AnyShapeStyle(Color.white.opacity(0.08)))
-                    .overlay(Capsule().strokeBorder(Color.white.opacity(configuration.isOn ? 0.3 : 0.1)))
-                    .shadow(color: Theme.gold.opacity(configuration.isOn ? 0.6 : 0), radius: 8)
+                          : AnyShapeStyle(Color.white.opacity(0.12)))
+                    .shadow(color: Theme.gold.opacity(configuration.isOn ? 0.45 : 0), radius: 8)
                 Circle()
-                    .fill(Color.white.opacity(configuration.isOn ? 1 : 0.55))
-                    .shadow(color: .white.opacity(configuration.isOn ? 0.9 : 0), radius: 4)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
                     .padding(3)
             }
-            .frame(width: 40, height: 22)
+            .frame(width: 48, height: 28)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)

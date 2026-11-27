@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Builds "Countdown Timer.app" into ./build. Pass --install to also copy it to /Applications.
+# Builds "Blackhole Timer.app" into ./build. Pass --install to also copy it to /Applications.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP_NAME="Countdown Timer"       # shown in the Dock, menu bar and Finder
+APP_NAME="Blackhole Timer"       # shown in the Dock, menu bar and Finder
 EXECUTABLE="Countdown"           # the Swift product name
 BUNDLE_ID="com.cai112.countdown" # unchanged, so settings and notification permission carry over
 APP="build/${APP_NAME}.app"
@@ -53,7 +53,8 @@ codesign --force --sign - "$APP"
 
 if [[ "${1:-}" == "--install" ]]; then
     echo "==> Installing to /Applications"
-    rm -rf "/Applications/${APP_NAME}.app" "/Applications/Countdown.app"  # (its name before the rename)
+    # Also remove the app under its earlier names.
+    rm -rf "/Applications/${APP_NAME}.app" "/Applications/Countdown Timer.app" "/Applications/Countdown.app"
     cp -R "$APP" /Applications/
     echo "Done. Open it with: open \"/Applications/${APP_NAME}.app\""
 else

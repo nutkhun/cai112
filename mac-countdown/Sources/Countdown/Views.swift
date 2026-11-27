@@ -66,16 +66,16 @@ struct ContentView: View {
     }
 }
 
-/// The CDT app icon with the full app name.
+/// The app icon with the app name.
 private struct AppHeader: View {
     var body: some View {
         HStack(spacing: 7) {
             Image(nsImage: NSApp.applicationIconImage)
                 .resizable()
                 .interpolation(.high)
-                .frame(width: 22, height: 22)
-            Text("Count Down Timer")
-                .font(.system(size: 13, weight: .medium))
+                .frame(width: 24, height: 24)
+            Text("Blackhole Timer")
+                .font(.system(size: 15, weight: .semibold))
                 .tracking(0.6)
                 .foregroundStyle(.white.opacity(0.85))
         }
@@ -103,7 +103,7 @@ private struct SetupView: View {
 
             VStack(spacing: 22) {
                 Text("SET TIMER")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .tracking(4)
                     .foregroundStyle(.white.opacity(0.45))
 
@@ -168,7 +168,7 @@ private struct DigitField: View {
                 value = value <= range.lowerBound ? range.upperBound : value - 1
             }
             Text(unit.uppercased())
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .tracking(2)
                 .foregroundStyle(.white.opacity(0.4))
         }
@@ -281,7 +281,7 @@ private struct RunningView: View {
                 .offset(x: sin(angle) * 91, y: -cos(angle) * 91)
             // …and its label outside it.
             Text("\(mark.minutes)m")
-                .font(.system(size: 9, weight: .medium).monospacedDigit())
+                .font(.system(size: 11, weight: .medium).monospacedDigit())
                 .foregroundStyle(.white.opacity(upcoming ? 0.85 : 0.3))
                 .shadow(color: .black.opacity(0.8), radius: 2)
                 .offset(x: sin(angle) * 118, y: -cos(angle) * 118)
@@ -302,7 +302,7 @@ private struct RunningView: View {
                         .easeInOut(duration: 0.13)
                     }
                 Text("TIME'S UP")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .tracking(4)
                     .foregroundStyle(.white.opacity(0.8))
             }
@@ -314,7 +314,7 @@ private struct RunningView: View {
 
             VStack(spacing: 4) {
                 Text(timer.label.isEmpty ? "REMAINING" : timer.label.uppercased())
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .tracking(3)
                     .foregroundStyle(.white.opacity(0.45))
                     .lineLimit(1)
@@ -343,7 +343,7 @@ private struct RunningView: View {
                         .font(.system(size: 8))
                     Text(statusText)
                 }
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white.opacity(0.45))
             }
         }
@@ -440,10 +440,10 @@ private struct SettingsCard: View {
     var body: some View {
         VStack(spacing: 0) {
             if !settings.notificationsAllowed {
-                SettingRow(icon: "bell.slash", title: "Notifications are off", iconColor: Theme.coral) {
+                SettingRow(icon: "bell.slash", title: "Notifications are off", tint: Theme.coral) {
                     Button("Turn On") { Notifier.openSettings() }
                         .buttonStyle(GlassChipStyle(isOn: true))
-                        .help("Open System Settings → Notifications → Countdown and turn on Allow Notifications")
+                        .help("Open System Settings → Notifications → Blackhole Timer and turn on Allow Notifications")
                 }
                 divider
             }
@@ -453,11 +453,11 @@ private struct SettingsCard: View {
                     TextField("Add label", text: $timer.label)
                         .textFieldStyle(.plain)
                         .multilineTextAlignment(.trailing)
-                        .foregroundStyle(.white.opacity(0.7))
-                        .frame(maxWidth: 200)
+                        .foregroundStyle(.white.opacity(0.75))
+                        .frame(maxWidth: 190)
                 } else {
                     Text(timer.label.isEmpty ? "None" : timer.label)
-                        .foregroundStyle(.white.opacity(0.4))
+                        .foregroundStyle(.white.opacity(0.45))
                         .lineLimit(1)
                 }
             }
@@ -466,55 +466,77 @@ private struct SettingsCard: View {
             ReminderSection()
 
             divider
-            ReminderLengthRow()
-
-            divider
             SoundRow()
         }
-        .font(.system(size: 13))
-        .glassPanel()
+        .font(.system(size: 15))
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color(red: 0.05, green: 0.06, blue: 0.11).opacity(0.8))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(LinearGradient(colors: [.white.opacity(0.14), .white.opacity(0.03)],
+                                             startPoint: .top, endPoint: .bottom))
+        )
+        .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
     }
 
     private var divider: some View {
         Rectangle()
             .fill(Color.white.opacity(0.06))
             .frame(height: 1)
-            .padding(.leading, 42)
+            .padding(.leading, 60)
     }
 }
 
-/// One settings row: thin icon, title, and a control on the right.
+/// One settings row: icon in a small rounded tile, title, and a control on the right.
 private struct SettingRow<Trailing: View>: View {
     let icon: String
     let title: String
-    var iconColor: Color = .white.opacity(0.55)
+    var tint: Color = .white.opacity(0.8)
     let trailing: Trailing
 
-    init(icon: String, title: String, iconColor: Color = .white.opacity(0.55),
+    init(icon: String, title: String, tint: Color = .white.opacity(0.8),
          @ViewBuilder trailing: () -> Trailing) {
         self.icon = icon
         self.title = title
-        self.iconColor = iconColor
+        self.tint = tint
         self.trailing = trailing()
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(iconColor)
-                .frame(width: 16)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 30, height: 30)
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white.opacity(0.07)))
             Text(title)
-                .foregroundStyle(.white.opacity(0.9))
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.white.opacity(0.95))
             Spacer(minLength: 8)
             trailing
         }
-        .padding(.horizontal, 14)
-        .frame(minHeight: 44)
+        .padding(.horizontal, 16)
+        .frame(minHeight: 54)
     }
 }
 
-/// Reminder switch plus the "… minutes before the end" chips.
+/// A menu shown as its current value with a small up/down chevron.
+private struct MenuValueLabel: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(text)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 10, weight: .semibold))
+        }
+        .foregroundStyle(.white.opacity(0.65))
+    }
+}
+
+/// Reminder switch, the "… minutes before the end" chips, and how long a reminder rings.
 private struct ReminderSection: View {
     @EnvironmentObject private var timer: CountdownTimer
     @EnvironmentObject private var settings: AppSettings
@@ -531,8 +553,8 @@ private struct ReminderSection: View {
         VStack(alignment: .leading, spacing: 0) {
             SettingRow(icon: "bell", title: "Reminders") {
                 Text(summary)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white.opacity(0.45))
                     .contentTransition(.numericText())
                     .animation(.snappy, value: summary)
                 Toggle("Reminders", isOn: $settings.remindersEnabled)
@@ -541,35 +563,62 @@ private struct ReminderSection: View {
                     .help(settings.remindersEnabled ? "Turn reminders off" : "Turn reminders on")
             }
 
-            FlowLayout(spacing: 6) {
-                ForEach(options, id: \.self) { minutes in
-                    let isOn = settings.isReminderOn(minutes)
-                    let fired = timer.firedReminders.contains(minutes)
-                    Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            settings.toggleReminder(minutes)
-                        }
-                    } label: {
-                        HStack(spacing: 3) {
-                            if fired {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 8, weight: .bold))
+            VStack(alignment: .leading, spacing: 12) {
+                FlowLayout(spacing: 8) {
+                    ForEach(options, id: \.self) { minutes in
+                        let isOn = settings.isReminderOn(minutes)
+                        let fired = timer.firedReminders.contains(minutes)
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                settings.toggleReminder(minutes)
                             }
-                            Text("\(minutes)m")
+                        } label: {
+                            HStack(spacing: 4) {
+                                if fired {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 10, weight: .bold))
+                                }
+                                Text("\(minutes)m")
+                            }
                         }
+                        // A reminder that has already gone off shows as off until the next countdown.
+                        .buttonStyle(GlassChipStyle(isOn: isOn && !fired))
+                        .help(fired ? "Already reminded in this countdown"
+                              : isOn ? "Turn off the \(minutes)-minute reminder"
+                                     : "Remind me \(minutes) min before the end")
                     }
-                    // A reminder that has already gone off shows as off until the next countdown.
-                    .buttonStyle(GlassChipStyle(isOn: isOn && !fired))
-                    .help(fired ? "Already reminded in this countdown"
-                          : isOn ? "Turn off the \(minutes)-minute reminder"
-                                 : "Remind me \(minutes) min before the end")
+                    customChip
                 }
-                customChip
+
+                // How long each reminder keeps ringing.
+                HStack(spacing: 6) {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text("Rings for")
+                    Menu {
+                        Picker("Rings for", selection: $settings.reminderLength) {
+                            ForEach(AppSettings.reminderLengths) { length in
+                                Text(length.title).tag(length.seconds)
+                            }
+                        }
+                        .pickerStyle(.inline)
+                        .labelsHidden()
+                    } label: {
+                        MenuValueLabel(text: settings.reminderLengthTitle)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                }
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white.opacity(0.5))
+                .help("How long a reminder keeps ringing")
             }
             .disabled(!settings.remindersEnabled)
-            .padding(.leading, 42)
-            .padding(.trailing, 14)
-            .padding(.bottom, 12)
+            .opacity(settings.remindersEnabled ? 1 : 0.6)
+            .padding(.leading, 60)
+            .padding(.trailing, 16)
+            .padding(.bottom, 16)
         }
     }
 
@@ -580,20 +629,18 @@ private struct ReminderSection: View {
                 TextField("0", value: $customMinutes, format: .number)
                     .textFieldStyle(.plain)
                     .multilineTextAlignment(.trailing)
-                    .frame(width: 28)
+                    .frame(width: 32)
                     .focused($customFocused)
                     .onSubmit(addCustom)
                     .onExitCommand { closeCustom() }
                 Text("m")
                     .foregroundStyle(.white.opacity(0.5))
             }
-            .font(.system(size: 12, weight: .medium))
-            .padding(.horizontal, 11)
-            .frame(height: 26)
-            .background(Capsule().fill(Color.white.opacity(0.08)))
-            .overlay(Capsule().strokeBorder(
-                LinearGradient(colors: Theme.iridescent, startPoint: .leading, endPoint: .trailing)))
-            .shadow(color: Theme.gold.opacity(0.4), radius: 6)
+            .font(.system(size: 13, weight: .medium))
+            .padding(.horizontal, 14)
+            .frame(height: 32)
+            .background(Capsule().fill(Color.white.opacity(0.1)))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.5)))
             .transition(.scale.combined(with: .opacity))
             .onChange(of: customFocused) { _, focused in
                 if !focused { closeCustom() }
@@ -631,37 +678,6 @@ private struct ReminderSection: View {
     }
 }
 
-/// How long a reminder keeps chiming softly.
-private struct ReminderLengthRow: View {
-    @EnvironmentObject private var settings: AppSettings
-
-    var body: some View {
-        SettingRow(icon: "bell.and.waves.left.and.right", title: "Reminder rings for") {
-            Menu {
-                Picker("Reminder rings for", selection: $settings.reminderLength) {
-                    ForEach(AppSettings.reminderLengths) { length in
-                        Text(length.title).tag(length.seconds)
-                    }
-                }
-                .pickerStyle(.inline)
-                .labelsHidden()
-            } label: {
-                HStack(spacing: 4) {
-                    Text(settings.reminderLengthTitle)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 9, weight: .semibold))
-                }
-                .foregroundStyle(.white.opacity(0.6))
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-        }
-        .disabled(!settings.remindersEnabled)
-        .opacity(settings.remindersEnabled ? 1 : 0.5)
-    }
-}
-
 private struct SoundRow: View {
     @EnvironmentObject private var settings: AppSettings
     @State private var previews = 0
@@ -682,12 +698,7 @@ private struct SoundRow: View {
                 .pickerStyle(.inline)
                 .labelsHidden()
             } label: {
-                HStack(spacing: 4) {
-                    Text(settings.soundName)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 9, weight: .semibold))
-                }
-                .foregroundStyle(.white.opacity(0.6))
+                MenuValueLabel(text: settings.soundName)
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
@@ -700,7 +711,7 @@ private struct SoundRow: View {
                 Image(systemName: "play.fill")
                     .symbolEffect(.bounce, value: previews)
             }
-            .buttonStyle(GlassIconButtonStyle(size: 28))
+            .buttonStyle(GlassIconButtonStyle(size: 32))
             .help("Play this sound")
         }
     }
@@ -774,7 +785,7 @@ private struct TimerTab: View {
             }
             if timer.reminderRinging {
                 Image(systemName: "bell.fill")
-                    .font(.system(size: 9))
+                    .font(.system(size: 11))
                     .foregroundStyle(Theme.gold)
                     .symbolEffect(.pulse)
             }
@@ -788,10 +799,10 @@ private struct TimerTab: View {
                 .help("Remove this timer")
             }
         }
-        .font(.system(size: 12, weight: .medium))
+        .font(.system(size: 14, weight: .medium))
         .foregroundStyle(.white.opacity(isSelected ? 1 : 0.7))
         .padding(.horizontal, 10)
-        .frame(height: 28)
+        .frame(height: 32)
         .background(Capsule().fill(Color.white.opacity(isSelected ? 0.12 : (hovering ? 0.07 : 0.04))))
         .overlay(Capsule().strokeBorder(border, lineWidth: isSelected ? 1.2 : 1))
         .contentShape(Capsule())
@@ -849,7 +860,7 @@ struct MenuBarMenu: View {
             openWindow(id: "main")
             NSApp.activate(ignoringOtherApps: true)
         }
-        Button("Quit Countdown Timer") { NSApp.terminate(nil) }
+        Button("Quit Blackhole Timer") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
     }
 }
