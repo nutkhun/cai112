@@ -353,6 +353,17 @@ private struct SettingsCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if !timer.notificationsAllowed {
+                SettingRow(icon: "bell.slash.fill", color: .red, title: "Notifications are off") {
+                    Button("Turn On…") { Notifier.openSettings() }
+                        .buttonStyle(PillButtonStyle())
+                        .help("Open System Settings → Notifications → Countdown and turn on Allow Notifications")
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                divider
+            }
+
             SettingRow(icon: "tag.fill", color: .blue, title: "Label") {
                 if timer.state == .idle {
                     TextField("None", text: $timer.label)

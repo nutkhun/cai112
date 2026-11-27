@@ -1,5 +1,8 @@
 import AppKit
 import UserNotifications
+import os
+
+private let log = Logger(subsystem: "com.cai112.countdown", category: "notifications")
 
 /// Plays a built-in macOS sound on a loop until stopped.
 final class AlarmPlayer {
@@ -11,7 +14,7 @@ final class AlarmPlayer {
     /// Stop by itself after this long if nobody dismisses the alert.
     private let maxRingTime: TimeInterval = 120
     private var sound: NSSound?
-    /// Kept alive while a preview plays.
+    /// Kept alive while a preview or reminder chime plays.
     private var oneShot: NSSound?
 
     func start(named name: String) {
@@ -35,8 +38,18 @@ final class AlarmPlayer {
     }
 
     func preview(named name: String) {
+        playOnce(name)
+    }
+
+    /// Plays the chosen sound once, a little softer, for the reminders before the end.
+    func chime(named name: String) {
+        playOnce(name, volume: 0.6)
+    }
+
+    private func playOnce(_ name: String, volume: Float = 1) {
         oneShot?.stop()
         oneShot = Self.makeSound(name)
+        oneShot?.volume = volume
         oneShot?.play()
     }
 
@@ -52,6 +65,9 @@ final class AlarmPlayer {
 /// Notifications need a real app bundle, so this does nothing under `swift run`
 /// (the in-app alert and sound still work).
 enum Notifier {
+    /// Posted on the main thread after the permission request has been answered.
+    static let permissionAnswered = Notification.Name("CountdownNotificationPermissionAnswered")
+
     static let finishedID = "countdown.finished"
     static let warningPrefix = "countdown.warning."
     static func warningID(_ offset: TimeInterval) -> String { warningPrefix + String(Int(offset)) }
@@ -65,20 +81,52 @@ enum Notifier {
     static func requestPermission() {
         guard isAvailable else { return }
         UNUserNotificationCenter.current().delegate = presenter
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+            log.notice("Notification permission granted: \(granted, privacy: .public), error: \(String(describing: error), privacy: .public)")
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: permissionAnswered, object: nil)
+            }
+        }
     }
 
-    static func schedule(id: String, after interval: TimeInterval, title: String, body: String) {
+    /// `sound: false` for reminders: the app plays its own chime for those, so it is heard
+    /// even when notifications are turned off.
+    static func schedule(id: String, after interval: TimeInterval,
+                         title: String, body: String, sound: Bool) {
         guard isAvailable, interval > 0 else { return }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
-        content.sound = .default
+        content.sound = sound ? .default : nil
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, interval), repeats: false)
         // Adding a request with the same id replaces any earlier one.
         UNUserNotificationCenter.current().add(
             UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-        )
+        ) { error in
+            if let error {
+                log.error("Could not schedule \(id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            } else {
+                log.notice("Scheduled \(id, privacy: .public) in \(Int(interval), privacy: .public)s")
+            }
+        }
+    }
+
+    /// Whether macOS currently lets Countdown show notifications.
+    static func checkAllowed(_ completion: @escaping (Bool) -> Void) {
+        guard isAvailable else { return completion(false) }
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let allowed = settings.authorizationStatus == .authorized
+                || settings.authorizationStatus == .provisional
+            DispatchQueue.main.async { completion(allowed) }
+        }
+    }
+
+    /// Opens Countdown's page in System Settings → Notifications.
+    static func openSettings() {
+        let id = Bundle.main.bundleIdentifier ?? ""
+        let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(id)")
+            ?? URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!
+        NSWorkspace.shared.open(url)
     }
 
     static func cancel() {
@@ -101,6 +149,6 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
         // "Minutes left" pop-ups show even when Countdown is in front;
         // the final alert is the in-app "Time's up!" dialog instead.
         let isWarning = notification.request.identifier.hasPrefix(Notifier.warningPrefix)
-        completionHandler(isWarning ? [.banner, .list, .sound] : [])
+        completionHandler(isWarning ? [.banner, .list] : [])
     }
 }
