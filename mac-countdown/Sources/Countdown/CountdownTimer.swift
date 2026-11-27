@@ -38,6 +38,13 @@ final class CountdownTimer: ObservableObject {
     @Published var soundName: String {
         didSet { UserDefaults.standard.set(soundName, forKey: Self.soundKey) }
     }
+    /// Master switch for the reminders.
+    @Published var remindersEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(remindersEnabled, forKey: Self.remindersEnabledKey)
+            if state == .running { run() }  // reschedule the notifications
+        }
+    }
     /// Minutes before the end at which a "… minutes left" notification pops up.
     @Published private(set) var reminderMinutes: [Int] {
         didSet {
@@ -61,6 +68,7 @@ final class CountdownTimer: ObservableObject {
 
     private static let soundKey = "alertSound"
     private static let remindersKey = "reminderMinutes"
+    private static let remindersEnabledKey = "remindersEnabled"
     private var lastDuration: TimeInterval = 0
     /// Reminder times (seconds before the end) still to chime in this run.
     private var pendingReminders: [TimeInterval] = []
@@ -74,6 +82,7 @@ final class CountdownTimer: ObservableObject {
         soundName = saved.flatMap { AlarmPlayer.sounds.contains($0) ? $0 : nil } ?? "Glass"
         let savedReminders = UserDefaults.standard.array(forKey: Self.remindersKey) as? [Int]
         reminderMinutes = savedReminders ?? [5, 2, 1]
+        remindersEnabled = UserDefaults.standard.object(forKey: Self.remindersEnabledKey) as? Bool ?? true
 
         // Re-check whenever the app comes to the front, e.g. after visiting System Settings.
         becameActive = NotificationCenter.default
@@ -97,11 +106,18 @@ final class CountdownTimer: ObservableObject {
 
     var remainingText: String { Self.format(remaining) }
 
-    /// Fraction of time left at an exact moment, for smooth animation between ticks.
+    /// Reminders that are actually in use (none when the switch is off).
+    var activeReminderMinutes: [Int] { remindersEnabled ? reminderMinutes : [] }
+
+    /// Exact time left at a moment, for smooth animation between ticks.
+    func remaining(at date: Date) -> TimeInterval {
+        guard state == .running, let end = endDate else { return remaining }
+        return max(0, end.timeIntervalSince(date))
+    }
+
+    /// Fraction of time left at an exact moment.
     func progress(at date: Date) -> Double {
-        guard total > 0 else { return 0 }
-        guard state == .running, let end = endDate else { return progress }
-        return max(0, end.timeIntervalSince(date)) / total
+        total > 0 ? remaining(at: date) / total : 0
     }
 
     // MARK: Controls
@@ -197,7 +213,7 @@ final class CountdownTimer: ObservableObject {
         Notifier.schedule(id: Notifier.finishedID, after: remaining,
                           title: "Time's up!", body: finishedMessage, sound: true)
         // "5 minutes left" etc. Only ones still ahead; one equal to the full duration would pop up at once.
-        pendingReminders = reminderMinutes
+        pendingReminders = activeReminderMinutes
             .map { TimeInterval($0 * 60) }
             .filter { $0 < remaining - 0.5 }
         for offset in pendingReminders {

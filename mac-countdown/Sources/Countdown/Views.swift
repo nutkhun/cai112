@@ -3,35 +3,40 @@ import AppKit
 
 struct ContentView: View {
     @EnvironmentObject private var timer: CountdownTimer
+    @State private var windowVisible = true
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             ZStack {
                 if timer.state == .idle {
                     SetupView()
                         .transition(.asymmetric(
                             insertion: .scale(scale: 0.9).combined(with: .opacity),
-                            removal: .scale(scale: 1.12).combined(with: .opacity)
+                            removal: .scale(scale: 1.15).combined(with: .opacity)
                         ))
                 } else {
                     RunningView()
                         .transition(.asymmetric(
-                            insertion: .scale(scale: 0.75).combined(with: .opacity),
+                            insertion: .scale(scale: 0.7).combined(with: .opacity),
                             removal: .scale(scale: 0.9).combined(with: .opacity)
                         ))
                 }
             }
             // Same height in both states, so the window doesn't jump.
-            .frame(height: 370)
-            .animation(.spring(response: 0.55, dampingFraction: 0.78), value: timer.state == .idle)
+            .frame(height: 392)
+            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: timer.state == .idle)
 
             SettingsCard()
         }
         .padding(.horizontal, 20)
-        .padding(.top, 30)  // room for the window buttons (no title bar)
+        .padding(.top, 26)  // room for the window buttons (no title bar)
         .padding(.bottom, 20)
         .frame(width: 400)
-        .background(VisualEffectBackground().ignoresSafeArea())
+        .foregroundStyle(.white)
+        .background(SpaceBackground())
+        .background(WindowVisibilityReader(isVisible: $windowVisible))
+        .environment(\.animationsPaused, !windowVisible)
+        .preferredColorScheme(.dark)
     }
 }
 
@@ -39,46 +44,63 @@ struct ContentView: View {
 
 private struct SetupView: View {
     @EnvironmentObject private var timer: CountdownTimer
+    @Environment(\.animationsPaused) private var animationsPaused
 
     var body: some View {
-        VStack(spacing: 26) {
-            HStack(alignment: .center, spacing: 2) {
-                DigitField(value: $timer.hours, range: 0...99, unit: "hours")
-                colon
-                DigitField(value: $timer.minutes, range: 0...59, unit: "min")
-                colon
-                DigitField(value: $timer.seconds, range: 0...59, unit: "sec")
+        ZStack {
+            // A calm, dim orb breathing behind the digits.
+            TimelineView(.animation(minimumInterval: 1.0 / 24, paused: animationsPaused)) { context in
+                OrbView(time: context.date.timeIntervalSinceReferenceDate,
+                        palette: Theme.calm, energy: 0.1, intensity: 0.55)
             }
+            .frame(width: 340, height: 340)
+            .offset(y: -36)
+            .allowsHitTesting(false)
 
-            HStack(spacing: 6) {
-                ForEach(CountdownTimer.presets, id: \.seconds) { preset in
-                    Button(preset.short) { timer.start(presetSeconds: preset.seconds) }
-                        .buttonStyle(ChipStyle())
-                        .help("Start \(preset.title)")
+            VStack(spacing: 22) {
+                Text("SET TIMER")
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(4)
+                    .foregroundStyle(.white.opacity(0.45))
+
+                HStack(alignment: .center, spacing: 2) {
+                    DigitField(value: $timer.hours, range: 0...99, unit: "hours")
+                    colon
+                    DigitField(value: $timer.minutes, range: 0...59, unit: "min")
+                    colon
+                    DigitField(value: $timer.seconds, range: 0...59, unit: "sec")
                 }
-            }
 
-            Button {
-                timer.start()
-            } label: {
-                Label("Start", systemImage: "play.fill")
-                    .frame(width: 150)
+                HStack(spacing: 6) {
+                    ForEach(CountdownTimer.presets, id: \.seconds) { preset in
+                        Button(preset.short) { timer.start(presetSeconds: preset.seconds) }
+                            .buttonStyle(GlassChipStyle())
+                            .help("Start \(preset.title)")
+                    }
+                }
+
+                Button {
+                    timer.start()
+                } label: {
+                    Label("Start", systemImage: "play.fill")
+                        .frame(width: 130)
+                }
+                .buttonStyle(GlassCapsuleButtonStyle())
+                .keyboardShortcut(.defaultAction)
+                .disabled(timer.configuredDuration == 0)
             }
-            .buttonStyle(PillButtonStyle(filled: true, large: true))
-            .keyboardShortcut(.defaultAction)
-            .disabled(timer.configuredDuration == 0)
         }
     }
 
     private var colon: some View {
         Text(":")
-            .font(.system(size: 44, weight: .ultraLight, design: .rounded))
-            .foregroundStyle(.tertiary)
+            .font(.system(size: 44, weight: .ultraLight))
+            .foregroundStyle(.white.opacity(0.3))
             .offset(y: -10)
     }
 }
 
-/// Big two-digit number you can type into, with ▲▼ buttons that wrap around.
+/// Big thin two-digit number you can type into, with ▲▼ buttons that wrap around.
 private struct DigitField: View {
     @Binding var value: Int
     let range: ClosedRange<Int>
@@ -92,20 +114,19 @@ private struct DigitField: View {
             }
             TextField("", value: $value, format: .number.precision(.integerLength(2)))
                 .textFieldStyle(.plain)
-                .font(.system(size: 54, weight: .light, design: .rounded).monospacedDigit())
+                .font(.system(size: 54, weight: .thin).monospacedDigit())
                 .multilineTextAlignment(.center)
                 .frame(width: 84)
                 .padding(.vertical, 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.primary.opacity(hovering ? 0.08 : 0.04))
-                )
+                .glassPanel(cornerRadius: 14)
+                .shadow(color: Theme.cyan.opacity(hovering ? 0.25 : 0), radius: 10)
             stepButton("chevron.down") {
                 value = value <= range.lowerBound ? range.upperBound : value - 1
             }
-            Text(unit)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text(unit.uppercased())
+                .font(.system(size: 9, weight: .semibold))
+                .tracking(2)
+                .foregroundStyle(.white.opacity(0.4))
         }
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.15), value: hovering)
@@ -119,8 +140,7 @@ private struct DigitField: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
-        .opacity(hovering ? 1 : 0.35)
+        .foregroundStyle(.white.opacity(hovering ? 0.8 : 0.3))
     }
 }
 
@@ -128,87 +148,152 @@ private struct DigitField: View {
 
 private struct RunningView: View {
     @EnvironmentObject private var timer: CountdownTimer
+    @Environment(\.animationsPaused) private var animationsPaused
 
     var body: some View {
-        VStack(spacing: 22) {
-            // Redraws ~30× a second so the ring drains smoothly and the glow breathes.
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: timer.state == .idle)) { context in
+        VStack(spacing: 14) {
+            // Redraws ~24× a second: ribbons drift, particles twinkle, the arc drains smoothly.
+            TimelineView(.animation(minimumInterval: 1.0 / 24, paused: animationsPaused || timer.state == .idle)) { context in
                 dial(at: context.date)
             }
             controls
         }
     }
 
+    // MARK: Dial
+
     private func dial(at date: Date) -> some View {
         let t = date.timeIntervalSinceReferenceDate
         let breath = (sin(t * 2.4) + 1) / 2  // 0…1
         let finished = timer.state == .finished
-        let progress = finished ? 1 : timer.progress(at: date)
+        let live = timer.remaining(at: date)
+        let progress = finished ? 1 : (timer.total > 0 ? live / timer.total : 0)
+        let dim = timer.state == .paused ? 0.35 + 0.35 * breath : 1
 
         return ZStack {
-            // Soft glow behind the ring.
-            Circle()
-                .fill(tint.opacity(finished ? 0.4 : 0.22))
+            OrbView(time: t, palette: palette, energy: energy, intensity: dim)
+                .frame(width: 300, height: 300)
+
+            GlassDisc(tint: rimTint, rotation: t * 14)
                 .frame(width: 180, height: 180)
-                .blur(radius: 40)
-                .scaleEffect(0.9 + (finished ? 0.3 : 0.14) * breath)
 
-            ProgressRing(progress: progress, color: tint, markers: reminderMarkers)
-                .scaleEffect(finished ? 1 + 0.03 * breath : 1)
+            ParticleField(time: t, energy: energy, intensity: dim)
+                .frame(width: 168, height: 168)
+                .clipShape(Circle())
 
-            center
-                .opacity(timer.state == .paused ? 0.4 + 0.6 * breath : 1)
+            ProgressArc(progress: progress, color: arcColor)
+                .frame(width: 210, height: 210)
+
+            // Small marker at 12 o'clock, where the arc starts and ends.
+            Image(systemName: "arrowtriangle.down.fill")
+                .font(.system(size: 6))
+                .foregroundStyle(.white.opacity(0.7))
+                .offset(y: -82)
+
+            ForEach(reminderMarks, id: \.minutes) { mark in
+                reminderLabel(mark, progress: progress)
+            }
+
+            center(live: live)
+                .opacity(timer.state == .paused ? 0.45 + 0.55 * breath : 1)
         }
-        .frame(width: 270, height: 270)
-        .animation(.easeInOut(duration: 0.6), value: tint)
+        .frame(width: 300, height: 300)
     }
 
-    @ViewBuilder private var center: some View {
+    private struct ReminderMark {
+        let minutes: Int
+        let fraction: Double
+    }
+
+    /// Reminder times that fall inside this countdown, placed around the ring.
+    private var reminderMarks: [ReminderMark] {
+        guard timer.total > 0 else { return [] }
+        return timer.activeReminderMinutes
+            .map { ReminderMark(minutes: $0, fraction: Double($0 * 60) / timer.total) }
+            .filter { $0.fraction > 0 && $0.fraction < 1 }
+    }
+
+    private func reminderLabel(_ mark: ReminderMark, progress: Double) -> some View {
+        let angle = mark.fraction * 2 * .pi
+        let upcoming = mark.fraction < progress
+        return ZStack {
+            // Dot on the arc band…
+            Circle()
+                .fill(upcoming ? Color.white : Color.white.opacity(0.25))
+                .frame(width: 4, height: 4)
+                .offset(x: sin(angle) * 105, y: -cos(angle) * 105)
+            // …and its label outside the ribbons.
+            Text("\(mark.minutes)m")
+                .font(.system(size: 9, weight: .medium).monospacedDigit())
+                .foregroundStyle(.white.opacity(upcoming ? 0.75 : 0.25))
+                .offset(x: sin(angle) * 140, y: -cos(angle) * 140)
+        }
+        .animation(.easeInOut(duration: 0.4), value: upcoming)
+    }
+
+    @ViewBuilder private func center(live: TimeInterval) -> some View {
         if timer.state == .finished {
             VStack(spacing: 8) {
                 Image(systemName: "bell.fill")
-                    .font(.system(size: 42))
-                    .foregroundStyle(.red)
+                    .font(.system(size: 38))
+                    .foregroundStyle(LinearGradient(colors: [Theme.coral, .red], startPoint: .top, endPoint: .bottom))
+                    .shadow(color: .red.opacity(0.7), radius: 10)
                     .phaseAnimator([-16.0, 16.0]) { content, angle in
                         content.rotationEffect(.degrees(angle), anchor: .top)
                     } animation: { _ in
                         .easeInOut(duration: 0.13)
                     }
-                Text("Time's up!")
-                    .font(.title2.weight(.semibold))
+                Text("TIME'S UP")
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(4)
+                    .foregroundStyle(.white.opacity(0.8))
             }
             .transition(.scale.combined(with: .opacity))
         } else {
+            let whole = Int(live)
+            let tenths = Int((live - Double(whole)) * 10)
+            let mainText = Self.clock(whole)
+
             VStack(spacing: 4) {
-                if !timer.label.isEmpty {
-                    Text(timer.label)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .frame(maxWidth: 160)
+                Text(timer.label.isEmpty ? "REMAINING" : timer.label.uppercased())
+                    .font(.system(size: 9, weight: .semibold))
+                    .tracking(3)
+                    .foregroundStyle(.white.opacity(0.45))
+                    .lineLimit(1)
+                    .frame(maxWidth: 140)
+
+                HStack(alignment: .firstTextBaseline, spacing: 1) {
+                    Text(mainText)
+                        .font(.system(size: whole >= 3600 ? 34 : 46, weight: .thin))
+                        .monospacedDigit()
+                        .contentTransition(.numericText(countsDown: true))
+                        .animation(.snappy, value: mainText)
+                    Text(".\(tenths)")
+                        .font(.system(size: 16, weight: .light))
+                        .monospacedDigit()
+                        .foregroundStyle(.white.opacity(0.55))
                 }
-                Text(timer.remainingText)
-                    .font(.system(size: 50, weight: .light, design: .rounded))
-                    .monospacedDigit()
-                    .contentTransition(.numericText(countsDown: true))
-                    .animation(.snappy, value: timer.remainingText)
-                    // A little "heartbeat" each second during the last 10 seconds.
-                    .phaseAnimator([1.0, 1.12], trigger: heartbeat) { content, scale in
-                        content.scaleEffect(scale)
-                    } animation: { _ in
-                        .spring(response: 0.2, dampingFraction: 0.5)
-                    }
-                HStack(spacing: 5) {
+                // A little "heartbeat" each second during the last 10 seconds.
+                .phaseAnimator([1.0, 1.1], trigger: heartbeat) { content, scale in
+                    content.scaleEffect(scale)
+                } animation: { _ in
+                    .spring(response: 0.2, dampingFraction: 0.5)
+                }
+
+                HStack(spacing: 4) {
                     Image(systemName: timer.state == .paused ? "pause.fill" : "bell.fill")
+                        .font(.system(size: 8))
                     Text(statusText)
                 }
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.45))
             }
         }
     }
 
-    /// Compact control bar: ✕ cancel, a glowing play/pause button, and +1 minute.
+    // MARK: Controls
+
+    /// Glass control bar: ✕ cancel, the glowing play/pause orb, and +1 minute.
     private var controls: some View {
         HStack(spacing: 26) {
             Button {
@@ -216,7 +301,7 @@ private struct RunningView: View {
             } label: {
                 Image(systemName: "xmark")
             }
-            .buttonStyle(GhostIconButtonStyle())
+            .buttonStyle(GlassIconButtonStyle())
             .keyboardShortcut(.cancelAction)
             .help("Cancel (Esc)")
 
@@ -226,7 +311,7 @@ private struct RunningView: View {
                 Image(systemName: timer.state == .running ? "pause.fill" : "play.fill")
                     .contentTransition(.symbolEffect(.replace))
             }
-            .buttonStyle(PrimaryCircleButtonStyle(tint: tint))
+            .buttonStyle(GlassOrbButtonStyle(tint: orbTint))
             .keyboardShortcut(.space, modifiers: [])
             .disabled(!timer.isActive)
             .opacity(timer.isActive ? 1 : 0)
@@ -237,28 +322,74 @@ private struct RunningView: View {
             } label: {
                 Text("+1m")
             }
-            .buttonStyle(GhostIconButtonStyle())
+            .buttonStyle(GlassIconButtonStyle())
             .disabled(!timer.isActive)
             .help("Add 1 minute")
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, 8)
-        .background(
-            Capsule().fill(Color.primary.opacity(0.04))
-        )
-        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06)))
+        .padding(.vertical, 7)
+        .glassPanel(cornerRadius: 40)
         .animation(.spring(response: 0.35, dampingFraction: 0.7), value: timer.state)
     }
 
-    /// Blue normally, orange in the last minute, red in the last 10 seconds.
-    private var tint: Color {
+    // MARK: Mood (colours and motion by urgency)
+
+    private enum Mood { case calm, lastMinute, final, paused, finished }
+
+    private var mood: Mood {
         switch timer.state {
-        case .paused: return .gray
-        case .finished: return .red
+        case .paused: return .paused
+        case .finished: return .finished
         default:
-            if timer.remaining <= 10 { return .red }
-            if timer.remaining <= 60 { return .orange }
-            return .accentColor
+            if timer.remaining <= 10 { return .final }
+            if timer.remaining <= 60 { return .lastMinute }
+            return .calm
+        }
+    }
+
+    private var palette: [Color] {
+        switch mood {
+        case .calm: return Theme.calm
+        case .lastMinute: return Theme.warm
+        case .final, .finished: return Theme.alarm
+        case .paused: return Theme.rest
+        }
+    }
+
+    private var energy: Double {
+        switch mood {
+        case .calm: return 0.3
+        case .lastMinute: return 0.6
+        case .final: return 1.0
+        case .finished: return 1.3
+        case .paused: return 0
+        }
+    }
+
+    private var rimTint: Color {
+        switch mood {
+        case .calm: return Theme.blue
+        case .lastMinute: return Theme.coral
+        case .final, .finished: return .red
+        case .paused: return .gray
+        }
+    }
+
+    private var arcColor: Color {
+        switch mood {
+        case .calm: return Theme.mint
+        case .lastMinute: return Theme.coral
+        case .final, .finished: return .red
+        case .paused: return Color(white: 0.6)
+        }
+    }
+
+    private var orbTint: Color {
+        switch mood {
+        case .calm: return Theme.blue
+        case .lastMinute: return Theme.coral
+        case .final, .finished: return .red
+        case .paused: return Theme.violet
         }
     }
 
@@ -267,86 +398,57 @@ private struct RunningView: View {
         return Int(timer.remaining.rounded(.up))
     }
 
-    /// Where each reminder sits on the ring, as a fraction of the whole countdown.
-    private var reminderMarkers: [Double] {
-        guard timer.total > 0 else { return [] }
-        return timer.reminderMinutes
-            .map { Double($0 * 60) / timer.total }
-            .filter { $0 > 0 && $0 < 1 }
-    }
-
     private var statusText: String {
         switch timer.state {
         case .running:
             guard let end = timer.endDate else { return "" }
             return end.formatted(date: .omitted, time: .shortened)
-        case .paused: return "Paused"
-        case .finished: return "Time's up!"
-        case .idle: return ""
+        case .paused: return "PAUSED"
+        case .finished, .idle: return ""
         }
+    }
+
+    /// "4:59" / "1:02:03", rounded down (the tenths are shown separately).
+    private static func clock(_ seconds: Int) -> String {
+        let h = seconds / 3600, m = (seconds % 3600) / 60, s = seconds % 60
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%02d:%02d", m, s)
     }
 }
 
-/// The countdown dial: watch-face ticks, a draining gradient ring with a glowing tip,
-/// and dots marking the reminder times.
-private struct ProgressRing: View {
-    /// Fraction of time left, 1 → 0.
+/// Glassy progress band around the disc: a soft gradient arc with a glow, draining clockwise to 12.
+private struct ProgressArc: View {
     let progress: Double
     let color: Color
-    let markers: [Double]
-    var size: CGFloat = 214
-    var lineWidth: CGFloat = 10
+    var lineWidth: CGFloat = 12
 
     var body: some View {
-        let radius = size / 2
         let visible = max(progress, 0.0001)
+        let gradient = AngularGradient(colors: [color.opacity(0.25), color.opacity(0.95)],
+                                       center: .center,
+                                       startAngle: .degrees(0),
+                                       endAngle: .degrees(visible * 360))
 
         ZStack {
-            ForEach(0..<60, id: \.self) { i in
-                let major = i % 5 == 0
-                Capsule()
-                    .fill(Color.primary.opacity(major ? 0.28 : 0.12))
-                    .frame(width: major ? 2 : 1, height: major ? 7 : 4)
-                    .offset(y: -(radius + 18))
-                    .rotationEffect(.degrees(Double(i) * 6))
-            }
-
-            Circle()
-                .stroke(Color.primary.opacity(0.08), lineWidth: lineWidth)
-
+            Circle().stroke(Color.white.opacity(0.05), lineWidth: lineWidth)
+            // Glow: a wide, faint copy of the arc.
             Circle()
                 .trim(from: 0, to: visible)
-                .stroke(
-                    AngularGradient(
-                        colors: [color.opacity(0.3), color],
-                        center: .center,
-                        startAngle: .degrees(0),
-                        endAngle: .degrees(visible * 360)
-                    ),
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                )
+                .stroke(gradient, style: StrokeStyle(lineWidth: lineWidth * 2.4, lineCap: .butt))
+                .opacity(0.16)
                 .rotationEffect(.degrees(-90))
-                .shadow(color: color.opacity(0.5), radius: 6)
-
-            ForEach(markers, id: \.self) { fraction in
-                // Bright while still ahead (on the coloured part), faded once passed.
-                Circle()
-                    .fill(fraction < progress ? Color.white.opacity(0.95) : Color.primary.opacity(0.3))
-                    .frame(width: 4, height: 4)
-                    .offset(y: -radius)
-                    .rotationEffect(.degrees(fraction * 360))
+            Circle()
+                .trim(from: 0, to: visible)
+                .stroke(gradient, style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
+                .rotationEffect(.degrees(-90))
+            // Bright leading edge with a soft coloured halo.
+            ZStack {
+                Capsule().fill(color.opacity(0.45)).frame(width: 7, height: lineWidth + 10)
+                Capsule().fill(Color.white).frame(width: 2, height: lineWidth + 4)
             }
-
-            if progress > 0 {
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: lineWidth - 2, height: lineWidth - 2)
-                    .shadow(color: color, radius: 5)
-                    .offset(y: -radius)
-                    .rotationEffect(.degrees(progress * 360))
-            }
+            .offset(y: -105)
+            .rotationEffect(.degrees(progress * 360))
+            .opacity(progress > 0 ? 1 : 0)
         }
-        .frame(width: size, height: size)
     }
 }
 
@@ -358,9 +460,9 @@ private struct SettingsCard: View {
     var body: some View {
         VStack(spacing: 0) {
             if !timer.notificationsAllowed {
-                SettingRow(icon: "bell.slash", title: "Notifications are off", iconColor: .red) {
+                SettingRow(icon: "bell.slash", title: "Notifications are off", iconColor: Theme.coral) {
                     Button("Turn On") { Notifier.openSettings() }
-                        .buttonStyle(ChipStyle(isOn: true))
+                        .buttonStyle(GlassChipStyle(isOn: true))
                         .help("Open System Settings → Notifications → Countdown and turn on Allow Notifications")
                 }
                 divider
@@ -371,11 +473,11 @@ private struct SettingsCard: View {
                     TextField("Add label", text: $timer.label)
                         .textFieldStyle(.plain)
                         .multilineTextAlignment(.trailing)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.7))
                         .frame(maxWidth: 200)
                 } else {
                     Text(timer.label.isEmpty ? "None" : timer.label)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.white.opacity(0.4))
                         .lineLimit(1)
                 }
             }
@@ -387,32 +489,25 @@ private struct SettingsCard: View {
             SoundRow()
         }
         .font(.system(size: 13))
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.primary.opacity(0.035))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.07))
-        )
+        .glassPanel()
     }
 
     private var divider: some View {
         Rectangle()
-            .fill(Color.primary.opacity(0.06))
+            .fill(Color.white.opacity(0.06))
             .frame(height: 1)
             .padding(.leading, 42)
     }
 }
 
-/// One settings row: thin monochrome icon, title, and a control on the right.
+/// One settings row: thin icon, title, and a control on the right.
 private struct SettingRow<Trailing: View>: View {
     let icon: String
     let title: String
-    var iconColor: Color = .secondary
+    var iconColor: Color = .white.opacity(0.55)
     let trailing: Trailing
 
-    init(icon: String, title: String, iconColor: Color = .secondary,
+    init(icon: String, title: String, iconColor: Color = .white.opacity(0.55),
          @ViewBuilder trailing: () -> Trailing) {
         self.icon = icon
         self.title = title
@@ -427,16 +522,16 @@ private struct SettingRow<Trailing: View>: View {
                 .foregroundStyle(iconColor)
                 .frame(width: 16)
             Text(title)
-                .foregroundStyle(.primary)
+                .foregroundStyle(.white.opacity(0.9))
             Spacer(minLength: 8)
             trailing
         }
         .padding(.horizontal, 14)
-        .frame(minHeight: 42)
+        .frame(minHeight: 44)
     }
 }
 
-/// Pick how many minutes before the end a "… minutes left" notification pops up.
+/// Reminder switch plus the "… minutes before the end" chips.
 private struct ReminderSection: View {
     @EnvironmentObject private var timer: CountdownTimer
     @State private var customMinutes: Int?
@@ -452,10 +547,14 @@ private struct ReminderSection: View {
         VStack(alignment: .leading, spacing: 0) {
             SettingRow(icon: "bell", title: "Reminders") {
                 Text(summary)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.4))
                     .contentTransition(.numericText())
                     .animation(.snappy, value: summary)
+                Toggle("Reminders", isOn: $timer.remindersEnabled)
+                    .toggleStyle(GlowSwitchStyle())
+                    .labelsHidden()
+                    .help(timer.remindersEnabled ? "Turn reminders off" : "Turn reminders on")
             }
 
             FlowLayout(spacing: 6) {
@@ -466,12 +565,13 @@ private struct ReminderSection: View {
                             timer.toggleReminder(minutes)
                         }
                     }
-                    .buttonStyle(ChipStyle(isOn: isOn))
+                    .buttonStyle(GlassChipStyle(isOn: isOn))
                     .help(isOn ? "Turn off the \(minutes)-minute reminder"
                                : "Remind me \(minutes) min before the end")
                 }
                 customChip
             }
+            .disabled(!timer.remindersEnabled)
             .padding(.leading, 42)
             .padding(.trailing, 14)
             .padding(.bottom, 12)
@@ -490,13 +590,15 @@ private struct ReminderSection: View {
                     .onSubmit(addCustom)
                     .onExitCommand { closeCustom() }
                 Text("m")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.white.opacity(0.5))
             }
             .font(.system(size: 12, weight: .medium))
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 11)
             .frame(height: 26)
-            .background(Capsule().fill(Color.primary.opacity(0.08)))
-            .overlay(Capsule().strokeBorder(Color.accentColor.opacity(0.6)))
+            .background(Capsule().fill(Color.white.opacity(0.08)))
+            .overlay(Capsule().strokeBorder(
+                LinearGradient(colors: Theme.iridescent, startPoint: .leading, endPoint: .trailing)))
+            .shadow(color: Theme.cyan.opacity(0.4), radius: 6)
             .transition(.scale.combined(with: .opacity))
             .onChange(of: customFocused) { _, focused in
                 if !focused { closeCustom() }
@@ -508,14 +610,14 @@ private struct ReminderSection: View {
             } label: {
                 Label("Custom", systemImage: "plus")
             }
-            .buttonStyle(ChipStyle())
+            .buttonStyle(GlassChipStyle())
             .help("Add a reminder at any number of minutes before the end")
         }
     }
 
     private var summary: String {
         let list = timer.reminderMinutes
-        guard !list.isEmpty else { return "Off" }
+        guard timer.remindersEnabled, !list.isEmpty else { return "Off" }
         return list.map(String.init).joined(separator: ", ") + " min before"
     }
 
@@ -552,7 +654,7 @@ private struct SoundRow: View {
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 9, weight: .semibold))
                 }
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.6))
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
@@ -565,7 +667,7 @@ private struct SoundRow: View {
                 Image(systemName: "play.fill")
                     .symbolEffect(.bounce, value: previews)
             }
-            .buttonStyle(GhostIconButtonStyle(size: 26))
+            .buttonStyle(GlassIconButtonStyle(size: 28))
             .help("Play this sound")
         }
     }
