@@ -175,11 +175,13 @@ struct EclipseView: View {
     }
 
     var time: Double
+    /// Accumulated phase of the spreading waves, in cycles (see `AnimationClock`).
+    var wavePhase: Double
+    /// Accumulated phase of the corona's breathing, in radians.
+    var breathPhase: Double
     /// Fraction of time left, 1 → 0.
     var progress: Double
     var palette: Palette
-    /// Speeds up the breathing and the spreading waves.
-    var energy: Double = 0.3
     var intensity: Double = 1
 
     var body: some View {
@@ -187,7 +189,7 @@ struct EclipseView: View {
             let center = CGPoint(x: size.width / 2, y: size.height / 2)
             let radius = min(size.width, size.height) * 0.24
             let t = time
-            let breath = 0.5 + 0.5 * sin(t * (0.8 + 1.5 * energy))
+            let breath = 0.5 + 0.5 * sin(breathPhase)
             // The corona is brightest on the side of the "light", which drifts gently around the top.
             let lightAngle = -Double.pi / 2 + 0.35 * sin(t * 0.17)
             let lit = CGPoint(x: center.x + cos(lightAngle) * radius * 0.12,
@@ -200,9 +202,15 @@ struct EclipseView: View {
             var glow = context
             glow.blendMode = .plusLighter
 
-            // 1. Cool outer corona (blue).
+            // 1. Cool outer corona (blue), gently lopsided in a slowly turning direction.
+            var coolLayer = glow
+            let squash = 0.07 + 0.05 * sin(t * 0.11)
+            coolLayer.translateBy(x: lit.x, y: lit.y)
+            coolLayer.rotate(by: .radians(t * 0.03))
+            coolLayer.scaleBy(x: 1 + squash, y: 1 - squash * 0.6)
+            coolLayer.translateBy(x: -lit.x, y: -lit.y)
             let coolRadius = radius * (1.86 + 0.06 * breath)
-            glow.fill(disc(lit, coolRadius), with: .radialGradient(
+            coolLayer.fill(disc(lit, coolRadius), with: .radialGradient(
                 Gradient(stops: [
                     .init(color: palette.cool.opacity(0), location: 0.42),
                     .init(color: palette.cool.opacity(0.5 * intensity), location: 0.6),
@@ -211,24 +219,55 @@ struct EclipseView: View {
                 ]),
                 center: lit, startRadius: 0, endRadius: coolRadius))
 
-            // 2. Spreading aura: soft waves leave the rim warm and cool to blue as they fade out.
-            let waveSpeed = 0.1 + 0.3 * energy
+            // 2. Spreading aura: soft waves leave the rim and fade out. Each wave gets its own
+            //    random direction, lean and strength, so it bulges more to one side.
             let waveCount = 3
             for k in 0..<waveCount {
-                let p = (t * waveSpeed + Double(k) / Double(waveCount)).truncatingRemainder(dividingBy: 1)
+                let position = wavePhase + Double(k) / Double(waveCount)
+                let cycle = position.rounded(.down)
+                let p = position - cycle  // 0 → 1 over the wave's life
+                let seed = cycle * 3 + Double(k)
+                let direction = Self.hash(seed) * 2 * .pi
+                let lean = 0.35 + 0.5 * Self.hash(seed + 17.3)
+                let strength = 0.55 + 0.45 * Self.hash(seed + 41.7)
+
+                let shift = radius * lean * 0.35 * p
+                let c = CGPoint(x: center.x + cos(direction) * shift, y: center.y + sin(direction) * shift)
+                var wave = glow
+                wave.translateBy(x: c.x, y: c.y)
+                wave.rotate(by: .radians(direction))
+                wave.scaleBy(x: 1 + 0.18 * lean * p, y: 1 - 0.1 * lean * p)
+                wave.translateBy(x: -c.x, y: -c.y)
+
                 let r = radius * (1.0 + 0.85 * p)
                 let width = radius * (0.10 + 0.25 * p)
                 let outer = r + width
-                let fade = pow(1 - p, 1.6) * 0.42 * intensity
+                let fade = pow(1 - p, 1.6) * 0.42 * strength * intensity
                 for (color, weight) in [(palette.aura, 1 - p), (palette.cool, p)] {
-                    glow.fill(disc(center, outer), with: .radialGradient(
+                    wave.fill(disc(c, outer), with: .radialGradient(
                         Gradient(stops: [
                             .init(color: color.opacity(0), location: max(0, (r - width) / outer)),
                             .init(color: color.opacity(fade * weight), location: r / outer),
                             .init(color: color.opacity(0), location: 1),
                         ]),
-                        center: center, startRadius: 0, endRadius: outer))
+                        center: c, startRadius: 0, endRadius: outer))
                 }
+            }
+
+            // Flares: soft plumes that swell and fade at slowly drifting points around the rim,
+            // so the glow is never even all the way round.
+            for i in 0..<4 {
+                let s = Double(i)
+                let drift: Double = i.isMultiple(of: 2) ? 1 : -1
+                let angle = s * 1.7 + 0.3 * sin(t * 0.05 + s) + t * 0.02 * drift
+                let swell = Self.noise(breathPhase * 0.35 + s * 2.3)
+                let reach = radius * (1.1 + 0.35 * swell)
+                let p = CGPoint(x: center.x + cos(angle) * reach, y: center.y + sin(angle) * reach)
+                let plumeSize = radius * (0.45 + 0.25 * swell)
+                let color = i.isMultiple(of: 2) ? palette.aura : palette.cool
+                glow.fill(disc(p, plumeSize), with: .radialGradient(
+                    Gradient(colors: [color.opacity(0.28 * swell * intensity), color.opacity(0)]),
+                    center: p, startRadius: 0, endRadius: plumeSize))
             }
 
             // 3. Warm inner corona (gold) hugging the rim.
@@ -278,6 +317,17 @@ struct EclipseView: View {
         }
     }
 
+    /// Repeatable pseudo-random number in 0…1 for a seed.
+    static func hash(_ x: Double) -> Double {
+        let v = sin(x * 12.9898) * 43758.5453
+        return v - v.rounded(.down)
+    }
+
+    /// Smooth, wandering value in roughly 0…1.
+    static func noise(_ x: Double) -> Double {
+        0.5 + 0.5 * (0.6 * sin(x) + 0.4 * sin(x * 1.618 + 1.3))
+    }
+
     /// A circle starting at 12 o'clock and running clockwise.
     static func circlePath(center: CGPoint, radius: CGFloat) -> Path {
         var path = Path()
@@ -288,6 +338,23 @@ struct EclipseView: View {
             if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
         }
         return path
+    }
+}
+
+/// Accumulates animation phases frame by frame, so speeding the motion up never makes it
+/// jump (multiplying a changing speed by the absolute clock would).
+final class AnimationClock {
+    private(set) var wavePhase = 0.0
+    private(set) var breathPhase = 0.0
+    private var lastTime: Double?
+
+    func advance(to time: Double, waveSpeed: Double, breathSpeed: Double) {
+        if let lastTime {
+            let dt = min(max(time - lastTime, 0), 0.1)
+            wavePhase += dt * waveSpeed
+            breathPhase += dt * breathSpeed
+        }
+        lastTime = time
     }
 }
 

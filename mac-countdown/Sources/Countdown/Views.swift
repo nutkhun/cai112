@@ -161,6 +161,7 @@ private struct RunningView: View {
     @EnvironmentObject private var timer: CountdownTimer
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.animationsPaused) private var animationsPaused
+    @State private var clock = AnimationClock()
 
     var body: some View {
         VStack(spacing: 14) {
@@ -194,12 +195,14 @@ private struct RunningView: View {
         let live = timer.remaining(at: date)
         let progress = finished ? 1 : (timer.total > 0 ? live / timer.total : 0)
         let dim = timer.state == .paused ? 0.35 + 0.35 * breath : 1
+        clock.advance(to: t, waveSpeed: 0.1 + 0.3 * energy, breathSpeed: 0.8 + 1.5 * energy)
 
         return ZStack {
             // The eclipse; its bright rim is the time remaining. Drawn larger than the dial
             // so the corona and spreading aura can fade out freely.
-            EclipseView(time: t, progress: progress, palette: palette(elapsed: finished ? 1 : 1 - progress),
-                        energy: energy, intensity: dim)
+            EclipseView(time: t, wavePhase: clock.wavePhase, breathPhase: clock.breathPhase,
+                        progress: progress, palette: palette(elapsed: finished ? 1 : 1 - progress),
+                        intensity: dim)
                 .frame(width: 380, height: 380)
                 .allowsHitTesting(false)
 
