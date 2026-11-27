@@ -11,6 +11,7 @@ A small native Mac app (SwiftUI) that counts down from a time you set and alerts
 - **Reminders** before the end (1, 2, 3, 5, 10, 15, 30 min or any custom time), with an on/off switch. Each reminder chimes softly and shows a "… minutes left" notification. **Reminder rings for** sets how long the chime keeps going (once, 10 sec, 30 sec, 1 min or 3 min); a **Silence reminder** button appears while it rings. A reminder that has gone off shows as off (✓) for the rest of that countdown.
 - When time is up: the alarm sound loops (up to 2 minutes), the app comes to the front with a **Time's up!** alert (Stop, Snooze 1 min, Restart), and a macOS notification appears
 - The soonest-ending timer shows in the menu bar; the menu lists every timer with its own actions. Closing the window keeps timers running.
+- **Spooky voice tones** in the Sound menu: Demon ("Your time is over"), Ghost, Robot, Doom Organ and Alien. Recorded with macOS voices by `scripts/make-voices.sh` (the build runs it on first use) and played through pitch, distortion, echo and reverb; reminders say "Your time is running out" in the same voice
 - Animations pause while the window is hidden, to save battery
 - App icon: the eclipse face with "CDT", drawn by `scripts/make-icon.swift` (the build renders it on first run; delete `Resources/AppIcon.icns` to re-render after changing the design)
 

@@ -659,7 +659,14 @@ private struct SoundRow: View {
         SettingRow(icon: "speaker.wave.2", title: "Sound") {
             Menu {
                 Picker("Sound", selection: $settings.soundName) {
-                    ForEach(AlarmPlayer.sounds, id: \.self) { Text($0).tag($0) }
+                    Section("Spooky voices") {
+                        ForEach(VoiceTone.all, id: \.name) { tone in
+                            Text(tone.name).tag(tone.name)
+                        }
+                    }
+                    Section("Sounds") {
+                        ForEach(AlarmPlayer.sounds, id: \.self) { Text($0).tag($0) }
+                    }
                 }
                 .pickerStyle(.inline)
                 .labelsHidden()

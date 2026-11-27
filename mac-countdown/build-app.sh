@@ -17,11 +17,16 @@ if [[ ! -f Resources/AppIcon.icns ]]; then
     scripts/make-icon.sh
 fi
 
+if [[ ! -d Resources/Voices ]]; then
+    echo "==> Recording voice tones"
+    scripts/make-voices.sh
+fi
+
 echo "==> Assembling ${APP}"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/$EXECUTABLE" "$APP/Contents/MacOS/$EXECUTABLE"
-cp Resources/*.png Resources/AppIcon.icns "$APP/Contents/Resources/"
+cp Resources/*.png Resources/AppIcon.icns Resources/Voices/*.aiff "$APP/Contents/Resources/"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

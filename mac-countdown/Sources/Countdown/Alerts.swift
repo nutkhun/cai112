@@ -4,8 +4,8 @@ import os
 
 private let log = Logger(subsystem: "com.cai112.countdown", category: "notifications")
 
-/// Plays built-in macOS sounds: the looping end-of-countdown alarm, the softer
-/// repeating reminder chime, and one-off previews.
+/// Plays the alert sounds — built-in macOS sounds or spoken voice tones (see VoiceTones.swift):
+/// the looping end-of-countdown alarm, the softer repeating reminder, and one-off previews.
 final class AlarmPlayer {
     static let sounds = [
         "Basso", "Blow", "Bottle", "Frog", "Funk", "Glass", "Hero",
@@ -24,14 +24,31 @@ final class AlarmPlayer {
     /// Kept alive while a preview plays.
     private var oneShot: NSSound?
 
+    private let alarmVoice = VoiceTonePlayer()
+    private let reminderVoice = VoiceTonePlayer()
+    private let previewVoice = VoiceTonePlayer()
+    private var reminderVoiceRinging = false
+
     /// Called when a repeating reminder finishes by itself.
     var onReminderEnded: (() -> Void)?
+
+    /// Built-in sounds plus the spoken voice tones.
+    static var allSounds: [String] { sounds + VoiceTone.all.map(\.name) }
+
+    /// A voice tone falls back to this if its recording is missing (e.g. under `swift run`).
+    private static func systemSound(for name: String) -> String {
+        VoiceTone.named(name) == nil ? name : "Glass"
+    }
 
     // MARK: Alarm
 
     func start(named name: String) {
         stop()
-        guard let sound = Self.makeSound(name) else {
+        if let tone = VoiceTone.named(name),
+           alarmVoice.play(tone, clip: .alarm, volume: 1, repeatUntil: Date().addingTimeInterval(maxRingTime)) {
+            return
+        }
+        guard let sound = Self.makeSound(Self.systemSound(for: name)) else {
             NSSound.beep()
             return
         }
@@ -47,6 +64,7 @@ final class AlarmPlayer {
     func stop() {
         sound?.stop()
         sound = nil
+        alarmVoice.stop()
     }
 
     // MARK: Reminder
@@ -55,7 +73,15 @@ final class AlarmPlayer {
     /// seconds for `duration` seconds (or until stopped).
     func startReminder(named name: String, duration: TimeInterval) {
         stopReminder(notify: false)
-        guard let chime = Self.makeSound(name) else {
+        if let tone = VoiceTone.named(name) {
+            reminderVoice.onFinished = { [weak self] in self?.reminderVoiceFinished() }
+            let until = duration > 0 ? Date().addingTimeInterval(duration) : nil
+            if reminderVoice.play(tone, clip: .reminder, volume: 0.75, repeatUntil: until) {
+                reminderVoiceRinging = duration > 0
+                return
+            }
+        }
+        guard let chime = Self.makeSound(Self.systemSound(for: name)) else {
             NSSound.beep()
             return
         }
@@ -73,13 +99,21 @@ final class AlarmPlayer {
     }
 
     func stopReminder(notify: Bool = true) {
-        let wasRinging = reminderTimer != nil
+        let wasRinging = reminderTimer != nil || reminderVoiceRinging
+        reminderVoice.stop()
+        reminderVoiceRinging = false
         reminderTimer?.invalidate()
         reminderTimer = nil
         reminderEnd = nil
         reminderSound?.stop()
         reminderSound = nil
         if notify && wasRinging { onReminderEnded?() }
+    }
+
+    private func reminderVoiceFinished() {
+        guard reminderVoiceRinging else { return }
+        reminderVoiceRinging = false
+        onReminderEnded?()
     }
 
     private func reminderTick() {
@@ -95,7 +129,12 @@ final class AlarmPlayer {
 
     func preview(named name: String) {
         oneShot?.stop()
-        oneShot = Self.makeSound(name)
+        previewVoice.stop()
+        if let tone = VoiceTone.named(name),
+           previewVoice.play(tone, clip: .alarm, volume: 1, repeatUntil: nil) {
+            return
+        }
+        oneShot = Self.makeSound(Self.systemSound(for: name))
         oneShot?.play()
     }
 

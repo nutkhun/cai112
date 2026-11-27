@@ -66,7 +66,7 @@ final class AppSettings: ObservableObject {
 
     private init() {
         let saved = defaults.string(forKey: Keys.sound)
-        soundName = saved.flatMap { AlarmPlayer.sounds.contains($0) ? $0 : nil } ?? "Glass"
+        soundName = saved.flatMap { AlarmPlayer.allSounds.contains($0) ? $0 : nil } ?? "Glass"
         reminderMinutes = defaults.array(forKey: Keys.reminders) as? [Int] ?? [5, 2, 1]
         remindersEnabled = defaults.object(forKey: Keys.remindersEnabled) as? Bool ?? true
         reminderLength = defaults.object(forKey: Keys.reminderLength) as? TimeInterval ?? 180

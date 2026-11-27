@@ -3,3 +3,4 @@ build/
 *.xcodeproj/
 .swiftpm/
 Resources/AppIcon.icns
+Resources/Voices/
