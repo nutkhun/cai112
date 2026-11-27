@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Builds Countdown.app into ./build. Pass --install to also copy it to /Applications.
+# Builds "Countdown Timer.app" into ./build. Pass --install to also copy it to /Applications.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP_NAME="Countdown"
-BUNDLE_ID="com.cai112.countdown"
+APP_NAME="Countdown Timer"       # shown in the Dock, menu bar and Finder
+EXECUTABLE="Countdown"           # the Swift product name
+BUNDLE_ID="com.cai112.countdown" # unchanged, so settings and notification permission carry over
 APP="build/${APP_NAME}.app"
 
 echo "==> Building release binary"
@@ -19,7 +20,7 @@ fi
 echo "==> Assembling ${APP}"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN_DIR/$APP_NAME" "$APP/Contents/MacOS/$APP_NAME"
+cp "$BIN_DIR/$EXECUTABLE" "$APP/Contents/MacOS/$EXECUTABLE"
 cp Resources/*.png Resources/AppIcon.icns "$APP/Contents/Resources/"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -29,7 +30,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <dict>
     <key>CFBundleName</key>               <string>${APP_NAME}</string>
     <key>CFBundleDisplayName</key>        <string>${APP_NAME}</string>
-    <key>CFBundleExecutable</key>         <string>${APP_NAME}</string>
+    <key>CFBundleExecutable</key>         <string>${EXECUTABLE}</string>
     <key>CFBundleIdentifier</key>         <string>${BUNDLE_ID}</string>
     <key>CFBundleIconFile</key>           <string>AppIcon</string>
     <key>CFBundlePackageType</key>        <string>APPL</string>
@@ -47,9 +48,9 @@ codesign --force --sign - "$APP"
 
 if [[ "${1:-}" == "--install" ]]; then
     echo "==> Installing to /Applications"
-    rm -rf "/Applications/${APP_NAME}.app"
+    rm -rf "/Applications/${APP_NAME}.app" "/Applications/Countdown.app"  # (its name before the rename)
     cp -R "$APP" /Applications/
-    echo "Done. Open it with: open /Applications/${APP_NAME}.app"
+    echo "Done. Open it with: open \"/Applications/${APP_NAME}.app\""
 else
-    echo "Done. Open it with: open ${APP}"
+    echo "Done. Open it with: open \"${APP}\""
 fi

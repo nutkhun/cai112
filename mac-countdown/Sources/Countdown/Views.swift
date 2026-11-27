@@ -40,14 +40,38 @@ struct ContentView: View {
         // Everything below the tabs works on the selected timer.
         .environmentObject(timer)
         .padding(.horizontal, 20)
-        .padding(.top, 26)  // room for the window buttons (no title bar)
+        .padding(.top, 12)
         .padding(.bottom, 20)
         .frame(width: 400)
+        // App icon and name in the title-bar strip, level with the window buttons.
+        .overlay(alignment: .top) {
+            AppHeader()
+                .padding(.top, 9)
+                .ignoresSafeArea(edges: .top)
+        }
         .foregroundStyle(.white)
         .background(SpaceBackground())
         .background(WindowVisibilityReader(isVisible: $windowVisible))
         .environment(\.animationsPaused, !windowVisible)
         .preferredColorScheme(.dark)
+    }
+}
+
+/// The CDT app icon with the full app name.
+private struct AppHeader: View {
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 22, height: 22)
+            Text("Count Down Timer")
+                .font(.system(size: 13, weight: .medium))
+                .tracking(0.6)
+                .foregroundStyle(.white.opacity(0.85))
+        }
+        // Let clicks fall through, so the window can still be dragged from here.
+        .allowsHitTesting(false)
     }
 }
 
@@ -807,7 +831,7 @@ struct MenuBarMenu: View {
             openWindow(id: "main")
             NSApp.activate(ignoringOtherApps: true)
         }
-        Button("Quit Countdown") { NSApp.terminate(nil) }
+        Button("Quit Countdown Timer") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
     }
 }
