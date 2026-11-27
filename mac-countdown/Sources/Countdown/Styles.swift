@@ -164,9 +164,14 @@ struct OrbView: View {
 /// (clockwise from 12); the elapsed part fades back.
 struct EclipseView: View {
     struct Palette {
+        /// The fine line around the disc.
         var rim: Color
+        /// The corona hugging the rim.
         var warm: Color
+        /// The outer corona.
         var cool: Color
+        /// The spreading waves: a neighbouring hue at the same colour temperature.
+        var aura: Color
     }
 
     var time: Double
@@ -215,7 +220,7 @@ struct EclipseView: View {
                 let width = radius * (0.10 + 0.25 * p)
                 let outer = r + width
                 let fade = pow(1 - p, 1.6) * 0.42 * intensity
-                for (color, weight) in [(palette.warm, 1 - p), (palette.cool, p)] {
+                for (color, weight) in [(palette.aura, 1 - p), (palette.cool, p)] {
                     glow.fill(disc(center, outer), with: .radialGradient(
                         Gradient(stops: [
                             .init(color: color.opacity(0), location: max(0, (r - width) / outer)),
@@ -283,6 +288,67 @@ struct EclipseView: View {
             if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
         }
         return path
+    }
+}
+
+/// Colour temperature over a countdown: icy blues at the start, warming through cyan,
+/// violet and amber to red exactly when time is up. Sampled continuously, so the colours
+/// drift smoothly instead of switching.
+enum ColorTemperature {
+    typealias RGB = (r: Double, g: Double, b: Double)
+    typealias Stop = (at: Double, rgb: RGB)
+
+    /// The fine rim line.
+    static let rim: [Stop] = [
+        (0.0, (0.92, 0.96, 1.00)),
+        (0.6, (1.00, 0.95, 0.92)),
+        (0.8, (1.00, 0.88, 0.75)),
+        (1.0, (1.00, 0.78, 0.70)),
+    ]
+    /// The corona hugging the rim.
+    static let inner: [Stop] = [
+        (0.00, (0.80, 0.88, 1.00)),  // ice white-blue
+        (0.35, (0.55, 0.85, 0.95)),  // cyan
+        (0.60, (0.78, 0.62, 1.00)),  // lavender-violet
+        (0.80, (1.00, 0.62, 0.35)),  // amber-orange
+        (1.00, (1.00, 0.25, 0.18)),  // red
+    ]
+    /// The outer corona.
+    static let outer: [Stop] = [
+        (0.00, (0.12, 0.30, 0.85)),  // deep blue
+        (0.35, (0.10, 0.45, 0.70)),  // teal-blue
+        (0.60, (0.42, 0.22, 0.85)),  // violet
+        (0.80, (0.75, 0.18, 0.45)),  // magenta-crimson
+        (1.00, (0.65, 0.05, 0.12)),  // dark red
+    ]
+
+    /// Eclipse colours at a point in the countdown (0 = just started, 1 = time's up).
+    /// `desaturate` fades them toward grey (used while paused).
+    static func palette(elapsed: Double, desaturate: Double = 0) -> EclipseView.Palette {
+        EclipseView.Palette(
+            rim: color(sample(rim, elapsed), desaturate: desaturate),
+            warm: color(sample(inner, elapsed), desaturate: desaturate),
+            cool: color(sample(outer, elapsed), desaturate: desaturate),
+            aura: color(sample(inner, elapsed + 0.15), desaturate: desaturate)
+        )
+    }
+
+    static func sample(_ stops: [Stop], _ t: Double) -> RGB {
+        let x = min(max(t, 0), 1)
+        guard let upper = stops.firstIndex(where: { $0.at >= x }) else { return stops[stops.count - 1].rgb }
+        guard upper > 0 else { return stops[0].rgb }
+        let a = stops[upper - 1], b = stops[upper]
+        let f = (x - a.at) / (b.at - a.at)
+        let s = f * f * (3 - 2 * f)  // smoothstep, for gentle transitions between stops
+        return (a.rgb.r + (b.rgb.r - a.rgb.r) * s,
+                a.rgb.g + (b.rgb.g - a.rgb.g) * s,
+                a.rgb.b + (b.rgb.b - a.rgb.b) * s)
+    }
+
+    static func color(_ rgb: RGB, desaturate amount: Double = 0) -> Color {
+        let grey = (0.3 * rgb.r + 0.59 * rgb.g + 0.11 * rgb.b) * 0.8
+        func mix(_ c: Double) -> Double { c + (grey - c) * amount }
+        return Color(red: mix(rgb.r), green: mix(rgb.g), blue: mix(rgb.b))
     }
 }
 

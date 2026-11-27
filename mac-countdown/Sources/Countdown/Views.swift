@@ -195,7 +195,8 @@ private struct RunningView: View {
         return ZStack {
             // The eclipse; its bright rim is the time remaining. Drawn larger than the dial
             // so the corona and spreading aura can fade out freely.
-            EclipseView(time: t, progress: progress, palette: eclipsePalette, energy: energy, intensity: dim)
+            EclipseView(time: t, progress: progress, palette: palette(elapsed: finished ? 1 : 1 - progress),
+                        energy: energy, intensity: dim)
                 .frame(width: 380, height: 380)
                 .allowsHitTesting(false)
 
@@ -327,7 +328,7 @@ private struct RunningView: View {
                 Image(systemName: timer.state == .running ? "pause.fill" : "play.fill")
                     .contentTransition(.symbolEffect(.replace))
             }
-            .buttonStyle(GlassOrbButtonStyle(tint: eclipsePalette.warm))
+            .buttonStyle(GlassOrbButtonStyle(tint: palette(elapsed: timer.state == .finished ? 1 : 1 - timer.progress).warm))
             .keyboardShortcut(.space, modifiers: [])
             .disabled(!timer.isActive)
             .opacity(timer.isActive ? 1 : 0)
@@ -348,49 +349,23 @@ private struct RunningView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.7), value: timer.state)
     }
 
-    // MARK: Mood (colours and motion by urgency)
+    // MARK: Colour temperature and motion
 
-    private enum Mood { case calm, lastMinute, final, paused, finished }
-
-    private var mood: Mood {
-        switch timer.state {
-        case .paused: return .paused
-        case .finished: return .finished
-        default:
-            if timer.remaining <= 10 { return .final }
-            if timer.remaining <= 60 { return .lastMinute }
-            return .calm
-        }
-    }
-
+    /// Breathing and spreading waves speed up gradually as the countdown runs out.
     private var energy: Double {
-        switch mood {
-        case .calm: return 0.3
-        case .lastMinute: return 0.6
-        case .final: return 1.0
-        case .finished: return 1.3
+        switch timer.state {
         case .paused: return 0
+        case .finished: return 1.3
+        default:
+            let elapsed = 1 - timer.progress
+            return 0.25 + 0.85 * elapsed * elapsed
         }
     }
 
-    /// Eclipse colours: gold and blue normally, orange and violet in the last minute,
-    /// red at the end, grey when paused. The play/pause button uses the warm colour.
-    private var eclipsePalette: EclipseView.Palette {
-        switch mood {
-        case .calm:
-            return .init(rim: Theme.cream, warm: Theme.gold, cool: Color(red: 0.22, green: 0.48, blue: 0.95))
-        case .lastMinute:
-            return .init(rim: Color(red: 1.0, green: 0.88, blue: 0.75),
-                         warm: Color(red: 1.0, green: 0.5, blue: 0.22),
-                         cool: Color(red: 0.45, green: 0.28, blue: 0.9))
-        case .final, .finished:
-            return .init(rim: Color(red: 1.0, green: 0.82, blue: 0.75),
-                         warm: Color(red: 1.0, green: 0.28, blue: 0.18),
-                         cool: Color(red: 0.6, green: 0.08, blue: 0.3))
-        case .paused:
-            return .init(rim: Color(white: 0.85), warm: Color(white: 0.55),
-                         cool: Color(red: 0.3, green: 0.34, blue: 0.5))
-        }
+    /// Colours follow the countdown continuously: cool at the start, red when time is up.
+    /// Paused fades them toward grey. The play/pause button uses the corona colour.
+    private func palette(elapsed: Double) -> EclipseView.Palette {
+        ColorTemperature.palette(elapsed: elapsed, desaturate: timer.state == .paused ? 0.75 : 0)
     }
 
     private var heartbeat: Int {
