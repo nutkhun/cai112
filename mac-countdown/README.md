@@ -14,7 +14,7 @@ A small native Mac app (SwiftUI) that counts down from a time you set and alerts
 - **Spooky voice tones** in the Sound menu: Demon ("Your time is over"), Ghost, Robot, Doom Organ and Alien. Recorded with macOS voices by `scripts/make-voices.sh` (the build runs it on first use) and played through pitch, distortion, echo and reverb; reminders say "Your time is running out" in the same voice
 - **Starfield background**: soft nebula clouds and an even field of stars with random sizes (a few sparkle), drifting with parallax and speeding up as time runs out; when time is up a black hole pulls them all in, spiralling into the dial, and the window goes dark
 - Animations pause while the window is hidden, to save battery
-- App icon: the eclipse face with "CDT", drawn by `scripts/make-icon.swift` (the build renders it on first run; delete `Resources/AppIcon.icns` to re-render after changing the design)
+- App icon: the eclipse face with "Blackhole Timer", drawn by `scripts/make-icon.swift` (the build renders it on first run; delete `Resources/AppIcon.icns` to re-render after changing the design)
 
 ## Requirements
 

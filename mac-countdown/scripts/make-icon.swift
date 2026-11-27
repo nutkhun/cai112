@@ -1,4 +1,4 @@
-// Draws the Countdown app icon (1024×1024 PNG): the eclipse countdown face with "CDT".
+// Draws the Blackhole Timer app icon (1024×1024 PNG): the eclipse countdown face with the name.
 // Usage: swift scripts/make-icon.swift <output.png>
 import AppKit
 
@@ -141,22 +141,35 @@ cg.closePath()
 cg.setFillColor(rgb(1, 1, 1, 0.6))
 cg.fillPath()
 
-// MARK: "CDT" in the countdown's thin typeface
+// MARK: "Blackhole Timer" in the countdown's thin typeface
 
 let shadow = NSShadow()
 shadow.shadowColor = NSColor(srgbRed: cyan.r, green: cyan.g, blue: cyan.b, alpha: 0.55)
 shadow.shadowBlurRadius = 18
 shadow.shadowOffset = .zero
 
-let text = NSAttributedString(string: "CDT", attributes: [
-    .font: NSFont.systemFont(ofSize: 150, weight: .thin),
+// "Blackhole" large and thin, "TIMER" small and widely spaced underneath.
+let title = NSAttributedString(string: "Blackhole", attributes: [
+    .font: NSFont.systemFont(ofSize: 84, weight: .thin),
     .foregroundColor: NSColor.white,
-    .kern: 10,
+    .kern: 1,
     .shadow: shadow,
 ])
-let textSize = text.size()
-// Nudge right by half the trailing kern so the letters sit visually centred.
-text.draw(at: CGPoint(x: center.x - textSize.width / 2 + 5, y: center.y - textSize.height / 2 + 4))
+let subtitle = NSAttributedString(string: "TIMER", attributes: [
+    .font: NSFont.systemFont(ofSize: 36, weight: .regular),
+    .foregroundColor: NSColor(white: 1, alpha: 0.75),
+    .kern: 16,
+    .shadow: shadow,
+])
+let titleSize = title.size()
+let subtitleSize = subtitle.size()
+let gap: CGFloat = 4
+let blockHeight = titleSize.height + gap + subtitleSize.height
+let blockBottom = center.y - blockHeight / 2  // y goes up
+subtitle.draw(at: CGPoint(x: center.x - subtitleSize.width / 2 + 8,  // + half the trailing kern
+                          y: blockBottom))
+title.draw(at: CGPoint(x: center.x - titleSize.width / 2,
+                       y: blockBottom + subtitleSize.height + gap))
 
 cg.restoreGState()  // tile clip
 NSGraphicsContext.restoreGraphicsState()
