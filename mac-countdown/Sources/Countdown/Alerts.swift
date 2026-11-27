@@ -47,7 +47,7 @@ final class AlarmPlayer {
     }
 }
 
-/// System notifications: "5/2/1 minutes left" pop-ups, and "Time's up!" for when the
+/// System notifications: "… minutes left" reminder pop-ups, and "Time's up!" for when the
 /// countdown ends while the app is in the background.
 /// Notifications need a real app bundle, so this does nothing under `swift run`
 /// (the in-app alert and sound still work).
@@ -55,10 +55,6 @@ enum Notifier {
     static let finishedID = "countdown.finished"
     static let warningPrefix = "countdown.warning."
     static func warningID(_ offset: TimeInterval) -> String { warningPrefix + String(Int(offset)) }
-
-    private static var allIDs: [String] {
-        [finishedID] + CountdownTimer.warningOffsets.map(warningID)
-    }
 
     private static let presenter = NotificationPresenter()
 
@@ -87,9 +83,11 @@ enum Notifier {
 
     static func cancel() {
         guard isAvailable else { return }
+        // Countdown posts no other notifications, so clear them all (this also
+        // catches reminders for minute values the user has since turned off).
         let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: allIDs)
-        center.removeDeliveredNotifications(withIdentifiers: allIDs)
+        center.removeAllPendingNotificationRequests()
+        center.removeAllDeliveredNotifications()
     }
 }
 

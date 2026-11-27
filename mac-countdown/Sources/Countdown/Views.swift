@@ -12,6 +12,7 @@ struct ContentView: View {
                 RunningView()
             }
             Divider()
+            ReminderPicker()
             SoundPicker()
         }
         .padding(24)
@@ -180,6 +181,85 @@ private struct RunningView: View {
         case .finished: return "Time's up!"
         case .idle: return ""
         }
+    }
+}
+
+// MARK: - Reminders
+
+/// Pick how many minutes before the end a "… minutes left" notification pops up.
+private struct ReminderPicker: View {
+    @EnvironmentObject private var timer: CountdownTimer
+    @State private var otherMinutes: Int?
+
+    private let columns = [GridItem(.adaptive(minimum: 54), spacing: 6)]
+
+    /// The standard choices plus any custom values the user added.
+    private var options: [Int] {
+        Set(CountdownTimer.reminderChoices + timer.reminderMinutes).sorted()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Remind me before the end")
+            Text(summary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            LazyVGrid(columns: columns, spacing: 6) {
+                ForEach(options, id: \.self) { minutes in
+                    chip(minutes)
+                }
+            }
+
+            HStack(spacing: 6) {
+                Text("Other:")
+                TextField("min", value: $otherMinutes, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 56)
+                    .onSubmit(addOther)
+                Text("min before")
+                Button("Add", action: addOther)
+                    .disabled(otherMinutes == nil)
+            }
+            .font(.callout)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func chip(_ minutes: Int) -> some View {
+        let isOn = timer.isReminderOn(minutes)
+        return Button {
+            timer.toggleReminder(minutes)
+        } label: {
+            Text("\(minutes) min")
+                .font(.callout)
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity)
+                .foregroundStyle(isOn ? Color.white : Color.primary)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isOn ? Color.accentColor : Color.secondary.opacity(0.15))
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(isOn ? "Turn off the \(minutes)-minute reminder" : "Remind me \(minutes) min before the end")
+    }
+
+    private var summary: String {
+        let list = timer.reminderMinutes
+        guard !list.isEmpty else { return "No reminders. Click a time to add one." }
+        let parts = list.map(String.init)
+        let joined = parts.count == 1
+            ? parts[0]
+            : parts.dropLast().joined(separator: ", ") + " and " + parts.last!
+        return "A notification pops up \(joined) min before the time is up."
+    }
+
+    private func addOther() {
+        guard let minutes = otherMinutes else { return }
+        timer.addReminder(minutes)
+        otherMinutes = nil
     }
 }
 

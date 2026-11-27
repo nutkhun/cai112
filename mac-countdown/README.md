@@ -8,7 +8,7 @@ A small native Mac app (SwiftUI) that counts down from a time you set and alerts
 - Quick-start presets: 1, 5, 10, 15, 25 min, 1 hour
 - Progress ring, plus the time the countdown will end
 - Pause/Resume (Space), Reset (Esc), +1 minute
-- A pop-up notification shows how much time is left at 5, 2 and 1 minutes before the end
+- Reminder notifications showing how much time is left: pick any times before the end (default 5, 2 and 1 min)
 - When the time is up:
   - the chosen sound loops (stops on its own after 2 minutes)
   - the app comes to the front and shows a **Time's up!** alert with **Stop**, **Snooze 1 min** and **Restart**

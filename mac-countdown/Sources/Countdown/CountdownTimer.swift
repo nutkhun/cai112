@@ -37,6 +37,13 @@ final class CountdownTimer: ObservableObject {
     @Published var soundName: String {
         didSet { UserDefaults.standard.set(soundName, forKey: Self.soundKey) }
     }
+    /// Minutes before the end at which a "… minutes left" notification pops up.
+    @Published private(set) var reminderMinutes: [Int] {
+        didSet {
+            UserDefaults.standard.set(reminderMinutes, forKey: Self.remindersKey)
+            if state == .running { run() }  // reschedule the notifications
+        }
+    }
 
     // MARK: Running countdown
 
@@ -45,10 +52,12 @@ final class CountdownTimer: ObservableObject {
     @Published private(set) var total: TimeInterval = 0
     @Published private(set) var endDate: Date?
 
-    /// Seconds before the end at which a "… minutes left" notification pops up.
-    static let warningOffsets: [TimeInterval] = [5 * 60, 2 * 60, 60]
+    /// Reminder times offered as buttons; any other number can be added too.
+    static let reminderChoices = [1, 2, 3, 5, 10, 15, 30]
+    static let maxReminderMinutes = 999
 
     private static let soundKey = "alertSound"
+    private static let remindersKey = "reminderMinutes"
     private var lastDuration: TimeInterval = 0
     private var ticker: AnyCancellable?
     private var activity: NSObjectProtocol?
@@ -57,6 +66,8 @@ final class CountdownTimer: ObservableObject {
     init() {
         let saved = UserDefaults.standard.string(forKey: Self.soundKey)
         soundName = saved.flatMap { AlarmPlayer.sounds.contains($0) ? $0 : nil } ?? "Glass"
+        let savedReminders = UserDefaults.standard.array(forKey: Self.remindersKey) as? [Int]
+        reminderMinutes = savedReminders ?? [5, 2, 1]
     }
 
     var configuredDuration: TimeInterval {
@@ -121,6 +132,23 @@ final class CountdownTimer: ObservableObject {
         }
     }
 
+    func isReminderOn(_ minutes: Int) -> Bool {
+        reminderMinutes.contains(minutes)
+    }
+
+    func toggleReminder(_ minutes: Int) {
+        if isReminderOn(minutes) {
+            reminderMinutes.removeAll { $0 == minutes }
+        } else {
+            addReminder(minutes)
+        }
+    }
+
+    func addReminder(_ minutes: Int) {
+        guard (1...Self.maxReminderMinutes).contains(minutes), !isReminderOn(minutes) else { return }
+        reminderMinutes = (reminderMinutes + [minutes]).sorted(by: >)
+    }
+
     func previewSound() {
         alarm.preview(named: soundName)
     }
@@ -145,7 +173,9 @@ final class CountdownTimer: ObservableObject {
         Notifier.schedule(id: Notifier.finishedID, after: remaining,
                           title: "Time's up!", body: finishedMessage)
         // "5 minutes left" etc. Only ones still ahead; one equal to the full duration would pop up at once.
-        for offset in Self.warningOffsets where offset < remaining - 0.5 {
+        for minutes in reminderMinutes {
+            let offset = TimeInterval(minutes * 60)
+            guard offset < remaining - 0.5 else { continue }
             Notifier.schedule(id: Notifier.warningID(offset), after: remaining - offset,
                               title: Self.timeLeftText(offset), body: warningBody)
         }
