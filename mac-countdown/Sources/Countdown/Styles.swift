@@ -635,3 +635,68 @@ struct WindowVisibilityReader: NSViewRepresentable {
         }
     }
 }
+
+// MARK: - Powered by badge
+
+/// "Powered by Getworkdone" badge with the G logo; opens the website when clicked.
+struct PoweredByBadge: View {
+    private static let url = URL(string: "https://claude101.getworkdone.space")!
+    /// Bundled into Contents/Resources by build-app.sh.
+    private static let logo = NSImage(named: "getworkdone-logo")
+    private static let glowBlue = Color(red: 0.32, green: 0.52, blue: 1.0)
+    private static let paleBlue = Color(red: 0.82, green: 0.90, blue: 1.0)
+
+    @State private var hovering = false
+
+    var body: some View {
+        Link(destination: Self.url) {
+            HStack(spacing: 9) {
+                (Text("Powered by ").foregroundStyle(.white.opacity(0.75))
+                    + Text("Getworkdone").fontWeight(.bold).foregroundStyle(Self.paleBlue))
+                    .font(.system(size: 12))
+                    .shadow(color: Self.glowBlue.opacity(0.8), radius: 6)
+
+                logoView
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, 4)
+            .frame(height: 32)
+            .background(Capsule().fill(
+                LinearGradient(colors: [Color(red: 0.03, green: 0.05, blue: 0.12),
+                                        Color(red: 0.01, green: 0.02, blue: 0.06)],
+                               startPoint: .leading, endPoint: .trailing)))
+            .overlay(Capsule().strokeBorder(
+                LinearGradient(colors: [Self.glowBlue.opacity(0.55), Self.paleBlue.opacity(0.9)],
+                               startPoint: .leading, endPoint: .trailing),
+                lineWidth: 1.2))
+            .shadow(color: Self.glowBlue.opacity(hovering ? 0.6 : 0.35), radius: hovering ? 12 : 8)
+            .scaleEffect(hovering ? 1.03 : 1)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.15), value: hovering)
+        .help("Open claude101.getworkdone.space")
+    }
+
+    private var logoView: some View {
+        ZStack {
+            Circle().fill(Color.black)
+            if let logo = Self.logo {
+                Image(nsImage: logo)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 22, height: 22)
+                    .clipShape(Circle())
+            } else {
+                // Fallback when running without the app bundle (e.g. `swift run`).
+                Text("G")
+                    .font(.system(size: 14, weight: .heavy))
+                    .foregroundStyle(Self.paleBlue)
+            }
+        }
+        .frame(width: 26, height: 26)
+        .overlay(Circle().strokeBorder(Self.paleBlue.opacity(0.6), lineWidth: 1))
+        .shadow(color: Self.glowBlue.opacity(0.7), radius: 5)
+    }
+}

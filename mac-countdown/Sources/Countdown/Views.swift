@@ -33,6 +33,9 @@ struct ContentView: View {
             .animation(.spring(response: 0.6, dampingFraction: 0.8), value: timer.state == .idle)
 
             SettingsCard()
+
+            PoweredByBadge()
+                .padding(.top, 2)
         }
         // Everything below the tabs works on the selected timer.
         .environmentObject(timer)
