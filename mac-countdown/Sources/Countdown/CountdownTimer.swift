@@ -45,6 +45,9 @@ final class CountdownTimer: ObservableObject {
     @Published private(set) var total: TimeInterval = 0
     @Published private(set) var endDate: Date?
 
+    /// Seconds before the end at which a "… minutes left" notification pops up.
+    static let warningOffsets: [TimeInterval] = [5 * 60, 2 * 60, 60]
+
     private static let soundKey = "alertSound"
     private var lastDuration: TimeInterval = 0
     private var ticker: AnyCancellable?
@@ -137,7 +140,15 @@ final class CountdownTimer: ObservableObject {
         stopTicking()
         endDate = Date().addingTimeInterval(remaining)
         state = .running
-        Notifier.schedule(after: remaining, body: finishedMessage)
+
+        Notifier.cancel()
+        Notifier.schedule(id: Notifier.finishedID, after: remaining,
+                          title: "Time's up!", body: finishedMessage)
+        // "5 minutes left" etc. Only ones still ahead; one equal to the full duration would pop up at once.
+        for offset in Self.warningOffsets where offset < remaining - 0.5 {
+            Notifier.schedule(id: Notifier.warningID(offset), after: remaining - offset,
+                              title: Self.timeLeftText(offset), body: warningBody)
+        }
 
         // Keep App Nap from delaying the alert while the app is in the background.
         activity = ProcessInfo.processInfo.beginActivity(
@@ -180,6 +191,17 @@ final class CountdownTimer: ObservableObject {
         return label.isEmpty
             ? "Your \(duration) countdown has finished."
             : "\(label): your \(duration) countdown has finished."
+    }
+
+    private var warningBody: String {
+        guard let end = endDate else { return "" }
+        let time = end.formatted(date: .omitted, time: .shortened)
+        return label.isEmpty ? "Countdown ends at \(time)." : "\(label) ends at \(time)."
+    }
+
+    static func timeLeftText(_ offset: TimeInterval) -> String {
+        let minutes = Int(offset / 60)
+        return minutes == 1 ? "1 minute left" : "\(minutes) minutes left"
     }
 
     private func presentAlert() {
