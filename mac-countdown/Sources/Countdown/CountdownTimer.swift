@@ -61,6 +61,8 @@ final class CountdownTimer: ObservableObject {
     @Published private(set) var endDate: Date?
     /// False when notifications are turned off for Countdown in System Settings.
     @Published private(set) var notificationsAllowed = true
+    /// Reminders (minutes) that have already gone off in this countdown; shown as off.
+    @Published private(set) var firedReminders: Set<Int> = []
 
     /// Reminder times offered as buttons; any other number can be added too.
     static let reminderChoices = [1, 2, 3, 5, 10, 15, 30]
@@ -160,6 +162,7 @@ final class CountdownTimer: ObservableObject {
         total = 0
         endDate = nil
         pendingReminders = []
+        firedReminders = []
     }
 
     func addTime(_ extra: TimeInterval) {
@@ -201,6 +204,7 @@ final class CountdownTimer: ObservableObject {
         lastDuration = duration
         total = duration
         remaining = duration
+        firedReminders = []
         run()
     }
 
@@ -216,6 +220,8 @@ final class CountdownTimer: ObservableObject {
         pendingReminders = activeReminderMinutes
             .map { TimeInterval($0 * 60) }
             .filter { $0 < remaining - 0.5 }
+        // Reminders that are ahead again (e.g. after +1 min) count as not yet fired.
+        firedReminders.subtract(pendingReminders.map { Int($0 / 60) })
         for offset in pendingReminders {
             Notifier.schedule(id: Notifier.warningID(offset), after: remaining - offset,
                               title: Self.timeLeftText(offset), body: warningBody, sound: false)
@@ -243,6 +249,7 @@ final class CountdownTimer: ObservableObject {
         let due = pendingReminders.filter { remaining <= $0 }
         if !due.isEmpty {
             pendingReminders.removeAll { due.contains($0) }
+            firedReminders.formUnion(due.map { Int($0 / 60) })
             alarm.chime(named: soundName)
         }
     }

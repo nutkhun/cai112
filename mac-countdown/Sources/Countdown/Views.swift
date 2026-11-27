@@ -48,12 +48,12 @@ private struct SetupView: View {
 
     var body: some View {
         ZStack {
-            // A calm, dim orb breathing behind the digits.
+            // A soft aurora drifting behind the digits (no ribbon lines over the controls).
             TimelineView(.animation(minimumInterval: 1.0 / 24, paused: animationsPaused)) { context in
                 OrbView(time: context.date.timeIntervalSinceReferenceDate,
-                        palette: Theme.calm, energy: 0.1, intensity: 0.55)
+                        palette: Theme.calm, energy: 0.1, intensity: 0.75, ribbonStrength: 0)
             }
-            .frame(width: 340, height: 340)
+            .frame(width: 380, height: 380)
             .offset(y: -36)
             .allowsHitTesting(false)
 
@@ -560,14 +560,25 @@ private struct ReminderSection: View {
             FlowLayout(spacing: 6) {
                 ForEach(options, id: \.self) { minutes in
                     let isOn = timer.isReminderOn(minutes)
-                    Button("\(minutes)m") {
+                    let fired = timer.firedReminders.contains(minutes)
+                    Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             timer.toggleReminder(minutes)
                         }
+                    } label: {
+                        HStack(spacing: 3) {
+                            if fired {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 8, weight: .bold))
+                            }
+                            Text("\(minutes)m")
+                        }
                     }
-                    .buttonStyle(GlassChipStyle(isOn: isOn))
-                    .help(isOn ? "Turn off the \(minutes)-minute reminder"
-                               : "Remind me \(minutes) min before the end")
+                    // A reminder that has already gone off shows as off until the next countdown.
+                    .buttonStyle(GlassChipStyle(isOn: isOn && !fired))
+                    .help(fired ? "Already reminded in this countdown"
+                          : isOn ? "Turn off the \(minutes)-minute reminder"
+                                 : "Remind me \(minutes) min before the end")
                 }
                 customChip
             }

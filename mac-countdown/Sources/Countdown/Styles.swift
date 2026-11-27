@@ -84,11 +84,13 @@ struct OrbView: View {
     var palette: [Color]
     var energy: Double = 0.3
     var intensity: Double = 1
+    /// 0 hides the ribbons (aurora only), 1 is full strength.
+    var ribbonStrength: Double = 1
 
     var body: some View {
         Canvas { context, size in
             let center = CGPoint(x: size.width / 2, y: size.height / 2)
-            let radius = min(size.width, size.height) * 0.40
+            let radius = min(size.width, size.height) * 0.38
             let t = time
 
             // Aurora: soft colour clouds slowly orbiting the centre (radial gradients, no blur).
@@ -101,11 +103,13 @@ struct OrbView: View {
                 let r = radius * 0.95
                 aurora.fill(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r)),
                             with: .radialGradient(
-                                Gradient(colors: [color.opacity(0.24 * intensity), color.opacity(0)]),
+                                Gradient(colors: [color.opacity(0.28 * intensity), color.opacity(0)]),
                                 center: p, startRadius: 0, endRadius: r))
             }
 
-            // Ribbons: translucent sheets with bright edges.
+            // Ribbons: faint glowing wisps that blend into the aurora.
+            guard ribbonStrength > 0 else { return }
+            let strength = intensity * ribbonStrength
             var ribbons = context
             ribbons.blendMode = .plusLighter
             for i in 0..<5 {
@@ -117,18 +121,21 @@ struct OrbView: View {
                                          radius: radius * (0.96 + 0.025 * seed),
                                          time: t * (0.6 + 0.9 * energy),
                                          seed: seed,
-                                         wobble: 0.045 + 0.07 * energy)
+                                         wobble: 0.03 + 0.035 * energy)
                 let a = t * 0.2 + seed * 1.7
                 let start = CGPoint(x: center.x + cos(a) * radius, y: center.y + sin(a) * radius)
                 let end = CGPoint(x: center.x - cos(a) * radius, y: center.y - sin(a) * radius)
 
                 ribbons.fill(path, with: .radialGradient(
-                    Gradient(colors: [color.opacity(0), color.opacity(0), color.opacity(0.14 * intensity)]),
+                    Gradient(colors: [color.opacity(0), color.opacity(0), color.opacity(0.05 * strength)]),
                     center: center, startRadius: 0, endRadius: radius * 1.1))
+                // A wide, faint stroke for the glow…
+                ribbons.stroke(path, with: .color(color.opacity(0.06 * strength)), lineWidth: 8)
+                // …and a fine edge that fades in and out around the loop.
                 ribbons.stroke(path, with: .linearGradient(
-                    Gradient(colors: [color.opacity(0.95 * intensity), color.opacity(0.1),
-                                      Color.white.opacity(0.55 * intensity), color.opacity(0.5 * intensity)]),
-                    startPoint: start, endPoint: end), lineWidth: 1.3)
+                    Gradient(colors: [color.opacity(0.5 * strength), color.opacity(0),
+                                      Color.white.opacity(0.25 * strength), color.opacity(0.15 * strength)]),
+                    startPoint: start, endPoint: end), lineWidth: 0.8)
             }
         }
     }
@@ -190,7 +197,7 @@ struct GlassDisc: View {
                                      center: .center, startRadius: 0, endRadius: 100))
             // Inner rim glow.
             Circle()
-                .fill(RadialGradient(colors: [tint.opacity(0), tint.opacity(0), tint.opacity(0.32)],
+                .fill(RadialGradient(colors: [tint.opacity(0), tint.opacity(0), tint.opacity(0.18)],
                                      center: .center, startRadius: 0, endRadius: 90))
             Circle()
                 .strokeBorder(
@@ -204,7 +211,7 @@ struct GlassDisc: View {
         // Outer halo.
         .background(
             Circle()
-                .fill(RadialGradient(colors: [tint.opacity(0.4), tint.opacity(0)],
+                .fill(RadialGradient(colors: [tint.opacity(0.22), tint.opacity(0)],
                                      center: .center, startRadius: 85, endRadius: 120))
                 .padding(-30)
         )
