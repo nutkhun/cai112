@@ -50,6 +50,15 @@ struct ContentView: View {
                 .ignoresSafeArea(edges: .top)
         }
         .foregroundStyle(.white)
+        // Stars streaming past, faster as time runs out; a black hole swallows them at the end.
+        .backgroundPreferenceValue(DialCenterKey.self) { anchor in
+            GeometryReader { proxy in
+                StarfieldView(timer: timer,
+                              center: anchor.map { proxy[$0] }
+                                  ?? CGPoint(x: proxy.size.width / 2, y: proxy.size.height * 0.38))
+            }
+            .ignoresSafeArea()
+        }
         .background(SpaceBackground())
         .background(WindowVisibilityReader(isVisible: $windowVisible))
         .environment(\.animationsPaused, !windowVisible)
@@ -226,7 +235,7 @@ private struct RunningView: View {
             // so the corona and spreading aura can fade out freely.
             EclipseView(time: t, wavePhase: clock.wavePhase, breathPhase: clock.breathPhase,
                         progress: progress, palette: palette(elapsed: finished ? 1 : 1 - progress),
-                        intensity: dim)
+                        intensity: dim * (1 - 0.8 * timer.blackHoleProgress(at: date)))
                 .frame(width: 380, height: 380)
                 .allowsHitTesting(false)
 
@@ -244,6 +253,8 @@ private struct RunningView: View {
                 .opacity(timer.state == .paused ? 0.45 + 0.55 * breath : 1)
         }
         .frame(width: 300, height: 300)
+        // Tells the starfield where the dial is (the stars stream from, and fall into, its centre).
+        .anchorPreference(key: DialCenterKey.self, value: .center) { $0 }
     }
 
     private struct ReminderMark {

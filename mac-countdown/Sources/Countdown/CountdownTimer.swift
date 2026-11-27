@@ -50,6 +50,8 @@ final class CountdownTimer: ObservableObject, Identifiable {
     @Published private(set) var firedReminders: Set<Int> = []
     /// True while a reminder is chiming (it can be silenced).
     @Published private(set) var reminderRinging = false
+    /// When time ran out (drives the black hole animation).
+    @Published private(set) var finishedAt: Date?
 
     private var lastDuration: TimeInterval = 0
     /// Reminder times (seconds before the end) still to go off in this run.
@@ -92,6 +94,12 @@ final class CountdownTimer: ObservableObject, Identifiable {
         total > 0 ? remaining(at: date) / total : 0
     }
 
+    /// 0 → 1 over the few seconds after time runs out: the black hole swallowing the stars.
+    func blackHoleProgress(at date: Date) -> Double {
+        guard state == .finished, let finishedAt else { return 0 }
+        return min(max(date.timeIntervalSince(finishedAt) / 3.5, 0), 1)
+    }
+
     // MARK: Controls
 
     func start() {
@@ -130,6 +138,7 @@ final class CountdownTimer: ObservableObject, Identifiable {
         silenceReminder()
         cancelNotifications()
         state = .idle
+        finishedAt = nil
         remaining = 0
         total = 0
         endDate = nil
@@ -170,6 +179,7 @@ final class CountdownTimer: ObservableObject, Identifiable {
         stopTicking()
         endDate = Date().addingTimeInterval(remaining)
         state = .running
+        finishedAt = nil
 
         cancelNotifications()
         let finishedID = Notifier.finishedID(id)
@@ -239,6 +249,7 @@ final class CountdownTimer: ObservableObject, Identifiable {
         remaining = 0
         endDate = nil
         state = .finished
+        finishedAt = Date()
         pendingReminders = []
         alarm.start(named: settings.soundName)
         // Show the alert outside the timer callback.

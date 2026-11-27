@@ -767,3 +767,161 @@ struct PoweredByBadge: View {
         .shadow(color: Self.glowBlue.opacity(0.7), radius: 5)
     }
 }
+
+// MARK: - Starfield
+
+/// The dial's centre, so the starfield can stream from (and collapse into) it.
+struct DialCenterKey: PreferenceKey {
+    static let defaultValue: Anchor<CGPoint>? = nil
+    static func reduce(value: inout Anchor<CGPoint>?, nextValue: () -> Anchor<CGPoint>?) {
+        value = nextValue() ?? value
+    }
+}
+
+/// Accumulates how far we have "travelled", so speeding up never makes the stars jump.
+final class StarfieldClock {
+    private(set) var travel = 0.0
+    private var lastTime: Double?
+
+    func advance(to time: Double, speed: Double) -> Double {
+        if let lastTime {
+            travel += min(max(time - lastTime, 0), 0.1) * speed
+        }
+        lastTime = time
+        return travel
+    }
+}
+
+/// Flying through space: stars stream outward from the dial, slowly at first and faster and
+/// faster (into light streaks) as the countdown runs out. When time is up, a black hole
+/// pulls every star in, spiralling into the dial, and the window goes dark.
+struct StarfieldView: View {
+    @ObservedObject var timer: CountdownTimer
+    /// Where the stars stream from, and where the black hole forms.
+    var center: CGPoint
+
+    @Environment(\.animationsPaused) private var animationsPaused
+    @State private var clock = StarfieldClock()
+
+    private static let starCount = 160
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 24, paused: animationsPaused)) { context in
+            let date = context.date
+            let t = date.timeIntervalSinceReferenceDate
+            let speed = Self.speed(for: timer, at: date)
+            let travel = clock.advance(to: t, speed: speed)
+            let hole = timer.blackHoleProgress(at: date)
+            Canvas { g, size in
+                Self.draw(in: &g, size: size, center: center, time: t,
+                          travel: travel, speed: speed, hole: hole)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    /// Depth travelled per second: a slow drift, accelerating steeply towards the end.
+    private static func speed(for timer: CountdownTimer, at date: Date) -> Double {
+        switch timer.state {
+        case .idle: return 0.012
+        case .paused: return 0.004
+        case .finished: return 0.05
+        case .running:
+            let elapsed = 1 - timer.progress(at: date)
+            return 0.012 + 0.32 * pow(elapsed, 2.2)
+        }
+    }
+
+    private static func draw(in g: inout GraphicsContext, size: CGSize, center: CGPoint, time t: Double,
+                             travel: Double, speed: Double, hole: Double) {
+        let unit = min(size.width, size.height)
+        let farthest = hypot(max(center.x, size.width - center.x), max(center.y, size.height - center.y))
+        let pull = hole * hole * (3 - 2 * hole)  // eased 0 → 1
+        // How far back along its path each star's streak reaches (longer when faster).
+        let trail = min(speed * 0.35, 0.18)
+
+        for i in 0..<starCount {
+            let s = Double(i)
+            let angle = hash(s * 1.31) * 2 * .pi
+            let spread = 0.12 + 0.88 * hash(s * 2.71)
+            // Depth: 1 = far away (near the centre), 0 = rushing past the viewer.
+            let depth = 1 - fract(hash(s * 4.13) + travel)
+            func projected(_ z: Double) -> Double { spread * unit * 0.08 / (0.05 + 0.95 * z) }
+
+            var r = projected(depth)
+            guard r < farthest + 20 else { continue }
+            var a = angle
+            var tailR = projected(min(depth + trail, 1))
+            var tailA = angle
+
+            let near = 1 - depth
+            var alpha = (0.15 + 0.85 * near) * (0.75 + 0.25 * sin(t * 1.7 + s * 2.3))
+            var width = 0.6 + 1.9 * near
+
+            // Black hole: each star falls in (with a slight delay of its own), spiralling faster.
+            if pull > 0 {
+                let delay = hash(s * 5.97) * 0.45
+                let k = min(max((pull - delay) / 0.55, 0), 1)
+                let swirl = 2.5 + 4 * (1 - spread)
+                let fall = k * k
+                let fallBefore = max(0, k - 0.06) * max(0, k - 0.06)
+                tailR = r * (1 - fallBefore)
+                tailA = angle + fallBefore * swirl
+                r *= 1 - fall
+                a += fall * swirl
+                alpha *= 1 - 0.6 * fall
+                width *= 1 - 0.5 * fall
+                if r < unit * 0.02 { continue }
+            }
+
+            let head = CGPoint(x: center.x + cos(a) * r, y: center.y + sin(a) * r)
+            let tail = CGPoint(x: center.x + cos(tailA) * tailR, y: center.y + sin(tailA) * tailR)
+            let color = tint(s)
+            if hypot(head.x - tail.x, head.y - tail.y) > 1.5 {
+                var streak = Path()
+                streak.move(to: tail)
+                streak.addLine(to: head)
+                g.stroke(streak,
+                         with: .linearGradient(Gradient(colors: [color.opacity(0), color.opacity(alpha)]),
+                                               startPoint: tail, endPoint: head),
+                         style: StrokeStyle(lineWidth: width, lineCap: .round))
+            } else {
+                g.fill(Path(ellipseIn: CGRect(x: head.x - width / 2, y: head.y - width / 2,
+                                              width: width, height: width)),
+                       with: .color(color.opacity(alpha)))
+            }
+        }
+
+        // The accretion glow flares while the stars fall in, then everything goes dark.
+        if hole > 0 {
+            let flare = sin(.pi * min(hole * 1.2, 1))
+            let ring = unit * 0.38
+            var glow = g
+            glow.blendMode = .plusLighter
+            glow.fill(Path(ellipseIn: CGRect(x: center.x - ring, y: center.y - ring, width: 2 * ring, height: 2 * ring)),
+                      with: .radialGradient(
+                          Gradient(stops: [
+                              .init(color: .clear, location: 0.6),
+                              .init(color: Color(red: 1.0, green: 0.55, blue: 0.25).opacity(0.45 * flare), location: 0.75),
+                              .init(color: .clear, location: 1),
+                          ]),
+                          center: center, startRadius: 0, endRadius: ring))
+            g.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.black.opacity(0.7 * pull)))
+        }
+    }
+
+    /// Mostly white stars, with a few pale blue and warm ones.
+    private static func tint(_ s: Double) -> Color {
+        let h = hash(s * 7.7)
+        if h < 0.15 { return Color(red: 0.72, green: 0.85, blue: 1.0) }
+        if h < 0.22 { return Color(red: 1.0, green: 0.9, blue: 0.76) }
+        return .white
+    }
+
+    private static func hash(_ x: Double) -> Double {
+        let v = sin(x * 12.9898) * 43758.5453
+        return v - v.rounded(.down)
+    }
+
+    private static func fract(_ x: Double) -> Double { x - x.rounded(.down) }
+}
