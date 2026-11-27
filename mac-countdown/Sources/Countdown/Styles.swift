@@ -16,13 +16,16 @@ enum Theme {
     static let violet = Color(red: 0.58, green: 0.44, blue: 0.97)
     static let pink = Color(red: 0.93, green: 0.43, blue: 0.71)
     static let coral = Color(red: 0.97, green: 0.53, blue: 0.33)
+    static let lavender = Color(red: 0.86, green: 0.84, blue: 1.0)
+    static let indigo = Color(red: 0.36, green: 0.28, blue: 1.0)
+    static let magenta = Color(red: 0.86, green: 0.32, blue: 0.92)
 
     /// Rim colours for highlighted controls.
-    static let iridescent: [Color] = [cyan, violet, pink, coral, cyan]
+    static let iridescent: [Color] = [cyan, blue, violet, pink, cyan]
 
     // Ribbon palettes for the orb, by urgency.
-    static let calm: [Color] = [pink, coral, cyan, violet, .white]
-    static let warm: [Color] = [coral, pink, .orange, violet, .white]
+    static let calm: [Color] = [violet, blue, indigo, cyan, lavender]
+    static let warm: [Color] = [magenta, pink, violet, coral, lavender]
     static let alarm: [Color] = [.red, coral, pink, .red, .white]
     static let rest: [Color] = [Color(white: 0.55), Color(red: 0.45, green: 0.5, blue: 0.65),
                                 Color(white: 0.4), Color(red: 0.4, green: 0.45, blue: 0.6), .white]
@@ -185,36 +188,100 @@ struct ParticleField: View {
     private static func fract(_ x: Double) -> Double { x - x.rounded(.down) }
 }
 
-/// Dark glass disc with a slowly turning glowing rim.
-struct GlassDisc: View {
-    var tint: Color
-    var rotation: Double
+/// A luminous energy ring made of many fine wavy loops layered into one glowing band.
+/// The bright part is the time remaining (clockwise from 12); the elapsed part fades back.
+struct WaveRingView: View {
+    var time: Double
+    /// Fraction of time left, 1 → 0.
+    var progress: Double
+    /// Colour of the bright outer edge of the band.
+    var core: Color
+    /// Colour of the inner band and the halo around it.
+    var glow: Color
+    var energy: Double = 0.3
+    var intensity: Double = 1
+    var lineCount = 28
 
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(RadialGradient(colors: [Theme.discCenter, Theme.discEdge],
-                                     center: .center, startRadius: 0, endRadius: 100))
-            // Inner rim glow.
-            Circle()
-                .fill(RadialGradient(colors: [tint.opacity(0), tint.opacity(0), tint.opacity(0.18)],
-                                     center: .center, startRadius: 0, endRadius: 90))
-            Circle()
-                .strokeBorder(
-                    AngularGradient(colors: [tint.opacity(0.95), .white.opacity(0.6), tint.opacity(0.12),
-                                             tint.opacity(0.55), tint.opacity(0.95)],
-                                    center: .center),
-                    lineWidth: 1.5
-                )
-                .rotationEffect(.degrees(rotation))
+        Canvas { context, size in
+            let center = CGPoint(x: size.width / 2, y: size.height / 2)
+            let radius = min(size.width, size.height) * 0.36
+            let t = time
+
+            // Halo: soft glow centred on the band (a radial gradient, no blur).
+            var halo = context
+            halo.blendMode = .plusLighter
+            let haloRadius = radius * 1.45
+            halo.fill(
+                Path(ellipseIn: CGRect(x: center.x - haloRadius, y: center.y - haloRadius,
+                                       width: 2 * haloRadius, height: 2 * haloRadius)),
+                with: .radialGradient(
+                    Gradient(stops: [
+                        .init(color: glow.opacity(0), location: 0.42),
+                        .init(color: glow.opacity(0.32 * intensity), location: 0.62),
+                        .init(color: glow.opacity(0.10 * intensity), location: 0.8),
+                        .init(color: glow.opacity(0), location: 1),
+                    ]),
+                    center: center, startRadius: 0, endRadius: haloRadius))
+
+            // The band: thin loops from the inner edge (violet, faint) to the outer edge (bright).
+            var lines = context
+            lines.blendMode = .plusLighter
+            let speed = 0.5 + 1.2 * energy
+            let wobble = 0.035 + 0.045 * energy
+            let shown = min(max(progress, 0), 1)
+            for i in 0..<lineCount {
+                let f = Double(i) / Double(lineCount - 1)  // 0 = inner edge, 1 = outer edge
+                let path = Self.wavePath(center: center,
+                                         radius: radius * (0.80 + 0.20 * f),
+                                         unit: radius,
+                                         time: t * speed,
+                                         phase: f * 1.3,
+                                         wobble: wobble)
+                let color = f < 0.55 ? glow : core
+                let alpha = (0.08 + 0.42 * f * f) * intensity
+                if shown < 1 {
+                    lines.stroke(path.trimmedPath(from: shown, to: 1),
+                                 with: .color(color.opacity(alpha * 0.16)), lineWidth: 0.7)
+                }
+                if shown > 0 {
+                    lines.stroke(path.trimmedPath(from: 0, to: shown),
+                                 with: .color(color.opacity(alpha)), lineWidth: 0.7)
+                }
+            }
+
+            // Spark at the leading edge of the remaining time.
+            if shown > 0, shown < 1 {
+                let angle = -Double.pi / 2 + shown * 2 * .pi
+                let p = CGPoint(x: center.x + cos(angle) * radius * 0.92,
+                                y: center.y + sin(angle) * radius * 0.92)
+                let r: CGFloat = 12
+                lines.fill(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r)),
+                           with: .radialGradient(Gradient(colors: [core.opacity(0.9 * intensity), glow.opacity(0)]),
+                                                 center: p, startRadius: 0, endRadius: r))
+                lines.fill(Path(ellipseIn: CGRect(x: p.x - 1.6, y: p.y - 1.6, width: 3.2, height: 3.2)),
+                           with: .color(.white.opacity(intensity)))
+            }
         }
-        // Outer halo.
-        .background(
-            Circle()
-                .fill(RadialGradient(colors: [tint.opacity(0.22), tint.opacity(0)],
-                                     center: .center, startRadius: 85, endRadius: 120))
-                .padding(-30)
-        )
+    }
+
+    /// A closed wavy loop starting at 12 o'clock and running clockwise.
+    static func wavePath(center: CGPoint, radius: CGFloat, unit: CGFloat,
+                         time: Double, phase: Double, wobble: Double) -> Path {
+        var path = Path()
+        let steps = 96
+        for step in 0...steps {
+            let u = Double(step) / Double(steps) * 2 * .pi
+            let angle = -Double.pi / 2 + u
+            let wave = 0.55 * sin(3 * u + time * 0.9 + phase)
+                + 0.30 * sin(5 * u - time * 1.3 + phase * 1.7)
+                + 0.15 * sin(2 * u + time * 0.5 - phase * 0.8)
+            let r = radius + unit * wobble * wave
+            let point = CGPoint(x: center.x + cos(angle) * r, y: center.y + sin(angle) * r)
+            if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        path.closeSubpath()
+        return path
     }
 }
 

@@ -171,24 +171,29 @@ private struct RunningView: View {
         let dim = timer.state == .paused ? 0.35 + 0.35 * breath : 1
 
         return ZStack {
-            OrbView(time: t, palette: palette, energy: energy, intensity: dim)
+            // Soft aurora behind, for blending.
+            OrbView(time: t, palette: palette, energy: energy, intensity: dim * 0.6, ribbonStrength: 0)
                 .frame(width: 300, height: 300)
 
-            GlassDisc(tint: rimTint, rotation: t * 14)
-                .frame(width: 180, height: 180)
-
-            ParticleField(time: t, energy: energy, intensity: dim)
-                .frame(width: 168, height: 168)
+            // Dark centre with faint drifting stars.
+            Circle()
+                .fill(RadialGradient(colors: [Color.black.opacity(0.55), Color.black.opacity(0)],
+                                     center: .center, startRadius: 40, endRadius: 95))
+                .frame(width: 190, height: 190)
+            ParticleField(time: t, energy: energy, intensity: dim * 0.5)
+                .frame(width: 150, height: 150)
                 .clipShape(Circle())
 
-            ProgressArc(progress: progress, color: arcColor)
-                .frame(width: 210, height: 210)
+            // The glowing wave ring: its bright part is the time remaining.
+            WaveRingView(time: t, progress: progress, core: ringCore, glow: ringGlow,
+                         energy: energy, intensity: dim)
+                .frame(width: 300, height: 300)
 
-            // Small marker at 12 o'clock, where the arc starts and ends.
+            // Small marker at 12 o'clock, where the ring starts and ends.
             Image(systemName: "arrowtriangle.down.fill")
                 .font(.system(size: 6))
-                .foregroundStyle(.white.opacity(0.7))
-                .offset(y: -82)
+                .foregroundStyle(.white.opacity(0.6))
+                .offset(y: -76)
 
             ForEach(reminderMarks, id: \.minutes) { mark in
                 reminderLabel(mark, progress: progress)
@@ -217,16 +222,16 @@ private struct RunningView: View {
         let angle = mark.fraction * 2 * .pi
         let upcoming = mark.fraction < progress
         return ZStack {
-            // Dot on the arc band…
+            // Dot on the ring…
             Circle()
                 .fill(upcoming ? Color.white : Color.white.opacity(0.25))
                 .frame(width: 4, height: 4)
-                .offset(x: sin(angle) * 105, y: -cos(angle) * 105)
-            // …and its label outside the ribbons.
+                .offset(x: sin(angle) * 97, y: -cos(angle) * 97)
+            // …and its label outside it.
             Text("\(mark.minutes)m")
                 .font(.system(size: 9, weight: .medium).monospacedDigit())
                 .foregroundStyle(.white.opacity(upcoming ? 0.75 : 0.25))
-                .offset(x: sin(angle) * 140, y: -cos(angle) * 140)
+                .offset(x: sin(angle) * 136, y: -cos(angle) * 136)
         }
         .animation(.easeInOut(duration: 0.4), value: upcoming)
     }
@@ -311,7 +316,7 @@ private struct RunningView: View {
                 Image(systemName: timer.state == .running ? "pause.fill" : "play.fill")
                     .contentTransition(.symbolEffect(.replace))
             }
-            .buttonStyle(GlassOrbButtonStyle(tint: orbTint))
+            .buttonStyle(GlassOrbButtonStyle(tint: ringGlow))
             .keyboardShortcut(.space, modifiers: [])
             .disabled(!timer.isActive)
             .opacity(timer.isActive ? 1 : 0)
@@ -366,30 +371,23 @@ private struct RunningView: View {
         }
     }
 
-    private var rimTint: Color {
+    /// Bright outer edge of the ring.
+    private var ringCore: Color {
         switch mood {
-        case .calm: return Theme.blue
-        case .lastMinute: return Theme.coral
-        case .final, .finished: return .red
-        case .paused: return .gray
+        case .calm: return Theme.lavender
+        case .lastMinute: return Color(red: 1.0, green: 0.84, blue: 0.96)
+        case .final, .finished: return Color(red: 1.0, green: 0.82, blue: 0.78)
+        case .paused: return Color(red: 0.75, green: 0.76, blue: 0.86)
         }
     }
 
-    private var arcColor: Color {
+    /// Inner band, halo and play/pause button colour.
+    private var ringGlow: Color {
         switch mood {
-        case .calm: return Theme.mint
-        case .lastMinute: return Theme.coral
-        case .final, .finished: return .red
-        case .paused: return Color(white: 0.6)
-        }
-    }
-
-    private var orbTint: Color {
-        switch mood {
-        case .calm: return Theme.blue
-        case .lastMinute: return Theme.coral
-        case .final, .finished: return .red
-        case .paused: return Theme.violet
+        case .calm: return Theme.indigo
+        case .lastMinute: return Theme.magenta
+        case .final, .finished: return Color(red: 1.0, green: 0.22, blue: 0.3)
+        case .paused: return Color(red: 0.4, green: 0.42, blue: 0.6)
         }
     }
 
@@ -412,43 +410,6 @@ private struct RunningView: View {
     private static func clock(_ seconds: Int) -> String {
         let h = seconds / 3600, m = (seconds % 3600) / 60, s = seconds % 60
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%02d:%02d", m, s)
-    }
-}
-
-/// Glassy progress band around the disc: a soft gradient arc with a glow, draining clockwise to 12.
-private struct ProgressArc: View {
-    let progress: Double
-    let color: Color
-    var lineWidth: CGFloat = 12
-
-    var body: some View {
-        let visible = max(progress, 0.0001)
-        let gradient = AngularGradient(colors: [color.opacity(0.25), color.opacity(0.95)],
-                                       center: .center,
-                                       startAngle: .degrees(0),
-                                       endAngle: .degrees(visible * 360))
-
-        ZStack {
-            Circle().stroke(Color.white.opacity(0.05), lineWidth: lineWidth)
-            // Glow: a wide, faint copy of the arc.
-            Circle()
-                .trim(from: 0, to: visible)
-                .stroke(gradient, style: StrokeStyle(lineWidth: lineWidth * 2.4, lineCap: .butt))
-                .opacity(0.16)
-                .rotationEffect(.degrees(-90))
-            Circle()
-                .trim(from: 0, to: visible)
-                .stroke(gradient, style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
-                .rotationEffect(.degrees(-90))
-            // Bright leading edge with a soft coloured halo.
-            ZStack {
-                Capsule().fill(color.opacity(0.45)).frame(width: 7, height: lineWidth + 10)
-                Capsule().fill(Color.white).frame(width: 2, height: lineWidth + 4)
-            }
-            .offset(y: -105)
-            .rotationEffect(.degrees(progress * 360))
-            .opacity(progress > 0 ? 1 : 0)
-        }
     }
 }
 
