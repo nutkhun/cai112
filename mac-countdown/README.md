@@ -4,18 +4,14 @@ A small native Mac app (SwiftUI) that counts down from a time you set and alerts
 
 ## Features
 
-- Set hours, minutes and seconds, with an optional label (e.g. "Quiz", "Break")
-- Quick-start presets: 1, 5, 10, 15, 25 min, 1 hour
-- Animated dial: the ring drains smoothly, turns orange in the last minute and red in the last 10 seconds, with dots marking your reminder times
-- Mac-style translucent window with a System Settings–style options card
-- Pause/Resume (Space), Reset (Esc), +1 minute
-- Reminder notifications showing how much time is left: pick any times before the end (default 5, 2 and 1 min)
-- When the time is up:
-  - the chosen sound loops (stops on its own after 2 minutes)
-  - the app comes to the front and shows a **Time's up!** alert with **Stop**, **Snooze 1 min** and **Restart**
-  - a macOS notification appears, even if the app is in the background (needs the `.app` build, see below)
-- The remaining time shows in the menu bar. Closing the window keeps the countdown running, and you can control it from the menu bar icon.
-- Choose from the built-in macOS alert sounds and preview them
+- **Several timers at once**: tabs along the top, each with its own label, time and alert; press + (or ⌘T) to add one, hover a tab and click × (or right-click it) to remove it
+- Set hours, minutes and seconds, or use the 1m–1h quick-start chips
+- Eclipse countdown face: the glowing rim is the time remaining; the aura spreads outward and turns orange in the last minute and red in the last 10 seconds
+- Pause/Resume (Space), Cancel (Esc), +1 minute
+- **Reminders** before the end (1, 2, 3, 5, 10, 15, 30 min or any custom time), with an on/off switch. Each reminder chimes softly and shows a "… minutes left" notification. **Reminder rings for** sets how long the chime keeps going (once, 10 sec, 30 sec, 1 min or 3 min); a **Silence reminder** button appears while it rings. A reminder that has gone off shows as off (✓) for the rest of that countdown.
+- When time is up: the alarm sound loops (up to 2 minutes), the app comes to the front with a **Time's up!** alert (Stop, Snooze 1 min, Restart), and a macOS notification appears
+- The soonest-ending timer shows in the menu bar; the menu lists every timer with its own actions. Closing the window keeps timers running.
+- Animations pause while the window is hidden, to save battery
 
 ## Requirements
 

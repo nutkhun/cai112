@@ -4,7 +4,8 @@ import os
 
 private let log = Logger(subsystem: "com.cai112.countdown", category: "notifications")
 
-/// Plays a built-in macOS sound on a loop until stopped.
+/// Plays built-in macOS sounds: the looping end-of-countdown alarm, the softer
+/// repeating reminder chime, and one-off previews.
 final class AlarmPlayer {
     static let sounds = [
         "Basso", "Blow", "Bottle", "Frog", "Funk", "Glass", "Hero",
@@ -13,9 +14,20 @@ final class AlarmPlayer {
 
     /// Stop by itself after this long if nobody dismisses the alert.
     private let maxRingTime: TimeInterval = 120
+    /// Gap between reminder chimes while a reminder keeps ringing.
+    private let reminderInterval: TimeInterval = 2.5
+
     private var sound: NSSound?
-    /// Kept alive while a preview or reminder chime plays.
+    private var reminderSound: NSSound?
+    private var reminderTimer: Timer?
+    private var reminderEnd: Date?
+    /// Kept alive while a preview plays.
     private var oneShot: NSSound?
+
+    /// Called when a repeating reminder finishes by itself.
+    var onReminderEnded: (() -> Void)?
+
+    // MARK: Alarm
 
     func start(named name: String) {
         stop()
@@ -37,40 +49,80 @@ final class AlarmPlayer {
         sound = nil
     }
 
+    // MARK: Reminder
+
+    /// Soft reminder chime: once when `duration` is 0, otherwise repeating every few
+    /// seconds for `duration` seconds (or until stopped).
+    func startReminder(named name: String, duration: TimeInterval) {
+        stopReminder(notify: false)
+        guard let chime = Self.makeSound(name) else {
+            NSSound.beep()
+            return
+        }
+        chime.volume = 0.55
+        chime.play()
+        reminderSound = chime
+        guard duration > 0 else { return }
+
+        reminderEnd = Date().addingTimeInterval(duration)
+        let timer = Timer(timeInterval: reminderInterval, repeats: true) { [weak self] _ in
+            self?.reminderTick()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        reminderTimer = timer
+    }
+
+    func stopReminder(notify: Bool = true) {
+        let wasRinging = reminderTimer != nil
+        reminderTimer?.invalidate()
+        reminderTimer = nil
+        reminderEnd = nil
+        reminderSound?.stop()
+        reminderSound = nil
+        if notify && wasRinging { onReminderEnded?() }
+    }
+
+    private func reminderTick() {
+        guard let end = reminderEnd, Date() < end else {
+            stopReminder()
+            return
+        }
+        reminderSound?.stop()
+        reminderSound?.play()
+    }
+
+    // MARK: Preview
+
     func preview(named name: String) {
-        playOnce(name)
-    }
-
-    /// Plays the chosen sound once, a little softer, for the reminders before the end.
-    func chime(named name: String) {
-        playOnce(name, volume: 0.6)
-    }
-
-    private func playOnce(_ name: String, volume: Float = 1) {
         oneShot?.stop()
         oneShot = Self.makeSound(name)
-        oneShot?.volume = volume
         oneShot?.play()
     }
 
     /// `NSSound(named:)` returns a shared instance, so copy it to keep the
-    /// looping alarm and previews independent.
+    /// alarm, reminder and previews independent.
     private static func makeSound(_ name: String) -> NSSound? {
         NSSound(named: NSSound.Name(name))?.copy() as? NSSound
     }
 }
 
-/// System notifications: "… minutes left" reminder pop-ups, and "Time's up!" for when the
-/// countdown ends while the app is in the background.
+/// System notifications: "… minutes left" reminder pop-ups, and "Time's up!" for when a
+/// countdown ends while the app is in the background. Each timer uses its own ids.
 /// Notifications need a real app bundle, so this does nothing under `swift run`
 /// (the in-app alert and sound still work).
 enum Notifier {
     /// Posted on the main thread after the permission request has been answered.
     static let permissionAnswered = Notification.Name("CountdownNotificationPermissionAnswered")
 
-    static let finishedID = "countdown.finished"
-    static let warningPrefix = "countdown.warning."
-    static func warningID(_ offset: TimeInterval) -> String { warningPrefix + String(Int(offset)) }
+    static func finishedID(_ timer: UUID) -> String {
+        "countdown.\(timer.uuidString).finished"
+    }
+
+    static func warningID(_ timer: UUID, _ offset: TimeInterval) -> String {
+        "countdown.\(timer.uuidString).warning.\(Int(offset))"
+    }
+
+    static func isWarning(_ id: String) -> Bool { id.contains(".warning.") }
 
     private static let presenter = NotificationPresenter()
 
@@ -129,10 +181,17 @@ enum Notifier {
         NSWorkspace.shared.open(url)
     }
 
-    static func cancel() {
+    /// Removes these pending and delivered notifications.
+    static func cancel(ids: [String]) {
+        guard isAvailable, !ids.isEmpty else { return }
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: ids)
+        center.removeDeliveredNotifications(withIdentifiers: ids)
+    }
+
+    /// Removes everything Countdown has scheduled (used when quitting).
+    static func cancelAll() {
         guard isAvailable else { return }
-        // Countdown posts no other notifications, so clear them all (this also
-        // catches reminders for minute values the user has since turned off).
         let center = UNUserNotificationCenter.current()
         center.removeAllPendingNotificationRequests()
         center.removeAllDeliveredNotifications()
@@ -148,7 +207,6 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
     ) {
         // "Minutes left" pop-ups show even when Countdown is in front;
         // the final alert is the in-app "Time's up!" dialog instead.
-        let isWarning = notification.request.identifier.hasPrefix(Notifier.warningPrefix)
-        completionHandler(isWarning ? [.banner, .list] : [])
+        completionHandler(Notifier.isWarning(notification.request.identifier) ? [.banner, .list] : [])
     }
 }

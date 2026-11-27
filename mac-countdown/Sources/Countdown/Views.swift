@@ -2,11 +2,14 @@ import SwiftUI
 import AppKit
 
 struct ContentView: View {
-    @EnvironmentObject private var timer: CountdownTimer
+    @EnvironmentObject private var store: TimerStore
     @State private var windowVisible = true
 
     var body: some View {
-        VStack(spacing: 14) {
+        let timer = store.selected
+        VStack(spacing: 12) {
+            TimerTabs()
+
             ZStack {
                 if timer.state == .idle {
                     SetupView()
@@ -22,12 +25,17 @@ struct ContentView: View {
                         ))
                 }
             }
+            // A fresh view per timer, cross-fading when you switch tabs.
+            .id(timer.id)
+            .transition(.opacity.combined(with: .scale(scale: 0.96)))
             // Same height in both states, so the window doesn't jump.
             .frame(height: 392)
             .animation(.spring(response: 0.6, dampingFraction: 0.8), value: timer.state == .idle)
 
             SettingsCard()
         }
+        // Everything below the tabs works on the selected timer.
+        .environmentObject(timer)
         .padding(.horizontal, 20)
         .padding(.top, 26)  // room for the window buttons (no title bar)
         .padding(.bottom, 20)
@@ -148,16 +156,30 @@ private struct DigitField: View {
 
 private struct RunningView: View {
     @EnvironmentObject private var timer: CountdownTimer
+    @EnvironmentObject private var settings: AppSettings
     @Environment(\.animationsPaused) private var animationsPaused
 
     var body: some View {
         VStack(spacing: 14) {
-            // Redraws ~24× a second: ribbons drift, particles twinkle, the arc drains smoothly.
+            // Redraws ~24× a second: the corona breathes, the aura spreads, the rim drains smoothly.
             TimelineView(.animation(minimumInterval: 1.0 / 24, paused: animationsPaused || timer.state == .idle)) { context in
                 dial(at: context.date)
             }
             controls
         }
+        // A reminder that is still chiming can be silenced.
+        .overlay(alignment: .top) {
+            if timer.reminderRinging {
+                Button {
+                    timer.silenceReminder()
+                } label: {
+                    Label("Silence reminder", systemImage: "bell.slash.fill")
+                }
+                .buttonStyle(GlassChipStyle(isOn: true))
+                .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: timer.reminderRinging)
     }
 
     // MARK: Dial
@@ -201,7 +223,7 @@ private struct RunningView: View {
     /// Reminder times that fall inside this countdown, placed around the ring.
     private var reminderMarks: [ReminderMark] {
         guard timer.total > 0 else { return [] }
-        return timer.activeReminderMinutes
+        return settings.activeReminderMinutes
             .map { ReminderMark(minutes: $0, fraction: Double($0 * 60) / timer.total) }
             .filter { $0.fraction > 0 && $0.fraction < 1 }
     }
@@ -397,10 +419,11 @@ private struct RunningView: View {
 
 private struct SettingsCard: View {
     @EnvironmentObject private var timer: CountdownTimer
+    @EnvironmentObject private var settings: AppSettings
 
     var body: some View {
         VStack(spacing: 0) {
-            if !timer.notificationsAllowed {
+            if !settings.notificationsAllowed {
                 SettingRow(icon: "bell.slash", title: "Notifications are off", iconColor: Theme.coral) {
                     Button("Turn On") { Notifier.openSettings() }
                         .buttonStyle(GlassChipStyle(isOn: true))
@@ -425,6 +448,9 @@ private struct SettingsCard: View {
 
             divider
             ReminderSection()
+
+            divider
+            ReminderLengthRow()
 
             divider
             SoundRow()
@@ -475,13 +501,14 @@ private struct SettingRow<Trailing: View>: View {
 /// Reminder switch plus the "… minutes before the end" chips.
 private struct ReminderSection: View {
     @EnvironmentObject private var timer: CountdownTimer
+    @EnvironmentObject private var settings: AppSettings
     @State private var customMinutes: Int?
     @State private var addingCustom = false
     @FocusState private var customFocused: Bool
 
     /// The standard choices plus any custom values the user added.
     private var options: [Int] {
-        Set(CountdownTimer.reminderChoices + timer.reminderMinutes).sorted()
+        Set(AppSettings.reminderChoices + settings.reminderMinutes).sorted()
     }
 
     var body: some View {
@@ -492,19 +519,19 @@ private struct ReminderSection: View {
                     .foregroundStyle(.white.opacity(0.4))
                     .contentTransition(.numericText())
                     .animation(.snappy, value: summary)
-                Toggle("Reminders", isOn: $timer.remindersEnabled)
+                Toggle("Reminders", isOn: $settings.remindersEnabled)
                     .toggleStyle(GlowSwitchStyle())
                     .labelsHidden()
-                    .help(timer.remindersEnabled ? "Turn reminders off" : "Turn reminders on")
+                    .help(settings.remindersEnabled ? "Turn reminders off" : "Turn reminders on")
             }
 
             FlowLayout(spacing: 6) {
                 ForEach(options, id: \.self) { minutes in
-                    let isOn = timer.isReminderOn(minutes)
+                    let isOn = settings.isReminderOn(minutes)
                     let fired = timer.firedReminders.contains(minutes)
                     Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            timer.toggleReminder(minutes)
+                            settings.toggleReminder(minutes)
                         }
                     } label: {
                         HStack(spacing: 3) {
@@ -523,7 +550,7 @@ private struct ReminderSection: View {
                 }
                 customChip
             }
-            .disabled(!timer.remindersEnabled)
+            .disabled(!settings.remindersEnabled)
             .padding(.leading, 42)
             .padding(.trailing, 14)
             .padding(.bottom, 12)
@@ -568,15 +595,15 @@ private struct ReminderSection: View {
     }
 
     private var summary: String {
-        let list = timer.reminderMinutes
-        guard timer.remindersEnabled, !list.isEmpty else { return "Off" }
+        let list = settings.reminderMinutes
+        guard settings.remindersEnabled, !list.isEmpty else { return "Off" }
         return list.map(String.init).joined(separator: ", ") + " min before"
     }
 
     private func addCustom() {
         if let minutes = customMinutes {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                timer.addReminder(minutes)
+                settings.addReminder(minutes)
             }
         }
         closeCustom()
@@ -588,21 +615,52 @@ private struct ReminderSection: View {
     }
 }
 
+/// How long a reminder keeps chiming softly.
+private struct ReminderLengthRow: View {
+    @EnvironmentObject private var settings: AppSettings
+
+    var body: some View {
+        SettingRow(icon: "bell.and.waves.left.and.right", title: "Reminder rings for") {
+            Menu {
+                Picker("Reminder rings for", selection: $settings.reminderLength) {
+                    ForEach(AppSettings.reminderLengths) { length in
+                        Text(length.title).tag(length.seconds)
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            } label: {
+                HStack(spacing: 4) {
+                    Text(settings.reminderLengthTitle)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                }
+                .foregroundStyle(.white.opacity(0.6))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+        }
+        .disabled(!settings.remindersEnabled)
+        .opacity(settings.remindersEnabled ? 1 : 0.5)
+    }
+}
+
 private struct SoundRow: View {
-    @EnvironmentObject private var timer: CountdownTimer
+    @EnvironmentObject private var settings: AppSettings
     @State private var previews = 0
 
     var body: some View {
         SettingRow(icon: "speaker.wave.2", title: "Sound") {
             Menu {
-                Picker("Sound", selection: $timer.soundName) {
+                Picker("Sound", selection: $settings.soundName) {
                     ForEach(AlarmPlayer.sounds, id: \.self) { Text($0).tag($0) }
                 }
                 .pickerStyle(.inline)
                 .labelsHidden()
             } label: {
                 HStack(spacing: 4) {
-                    Text(timer.soundName)
+                    Text(settings.soundName)
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 9, weight: .semibold))
                 }
@@ -614,7 +672,7 @@ private struct SoundRow: View {
 
             Button {
                 previews += 1
-                timer.previewSound()
+                settings.previewSound()
             } label: {
                 Image(systemName: "play.fill")
                     .symbolEffect(.bounce, value: previews)
@@ -625,25 +683,140 @@ private struct SoundRow: View {
     }
 }
 
+// MARK: - Timer tabs
+
+/// One tab per timer (label, live time, status) plus a + to add another.
+private struct TimerTabs: View {
+    @EnvironmentObject private var store: TimerStore
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(store.timers) { timer in
+                    TimerTab(timer: timer,
+                             name: store.name(of: timer),
+                             isSelected: timer.id == store.selectedID,
+                             canRemove: store.timers.count > 1,
+                             select: {
+                                 withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
+                                     store.selectedID = timer.id
+                                 }
+                             },
+                             remove: {
+                                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                     store.remove(timer)
+                                 }
+                             })
+                    .transition(.scale.combined(with: .opacity))
+                }
+
+                Button {
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) { _ = store.add() }
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(GlassIconButtonStyle(size: 28))
+                .keyboardShortcut("t", modifiers: .command)
+                .help("Add another timer (⌘T)")
+            }
+            .padding(.horizontal, 2)
+            .padding(.vertical, 4)
+        }
+        .frame(height: 36)
+    }
+}
+
+private struct TimerTab: View {
+    @ObservedObject var timer: CountdownTimer
+    let name: String
+    let isSelected: Bool
+    let canRemove: Bool
+    let select: () -> Void
+    let remove: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(dotColor)
+                .frame(width: 6, height: 6)
+                .shadow(color: dotColor.opacity(timer.state == .running ? 0.9 : 0), radius: 3)
+            Text(name)
+                .lineLimit(1)
+                .frame(maxWidth: 90)
+            if timer.state != .idle {
+                Text(timer.remainingText)
+                    .monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.55))
+            }
+            if timer.reminderRinging {
+                Image(systemName: "bell.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Theme.gold)
+                    .symbolEffect(.pulse)
+            }
+            if canRemove && hovering {
+                Button(action: remove) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8, weight: .bold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white.opacity(0.6))
+                .help("Remove this timer")
+            }
+        }
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(.white.opacity(isSelected ? 1 : 0.7))
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+        .background(Capsule().fill(Color.white.opacity(isSelected ? 0.12 : (hovering ? 0.07 : 0.04))))
+        .overlay(Capsule().strokeBorder(border, lineWidth: isSelected ? 1.2 : 1))
+        .contentShape(Capsule())
+        .onTapGesture(perform: select)
+        .onHover { hovering = $0 }
+        .contextMenu {
+            if canRemove {
+                Button("Remove Timer", role: .destructive, action: remove)
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: hovering)
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
+    }
+
+    private var dotColor: Color {
+        switch timer.state {
+        case .running: return Theme.gold
+        case .paused: return Color(white: 0.6)
+        case .finished: return .red
+        case .idle: return Color.white.opacity(0.25)
+        }
+    }
+
+    private var border: AnyShapeStyle {
+        isSelected
+            ? AnyShapeStyle(LinearGradient(colors: Theme.iridescent, startPoint: .leading, endPoint: .trailing))
+            : AnyShapeStyle(Color.white.opacity(0.08))
+    }
+}
+
 // MARK: - Menu bar
 
 struct MenuBarMenu: View {
-    @EnvironmentObject private var timer: CountdownTimer
+    @EnvironmentObject private var store: TimerStore
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        switch timer.state {
-        case .running:
-            Button("Pause") { timer.pause() }
-            Button("Add 1 Minute") { timer.addTime(60) }
-            Button("Reset") { timer.reset() }
-        case .paused:
-            Button("Resume") { timer.resume() }
-            Button("Add 1 Minute") { timer.addTime(60) }
-            Button("Reset") { timer.reset() }
-        case .idle, .finished:
+        ForEach(store.timers) { timer in
+            MenuBarTimerItem(timer: timer, name: store.name(of: timer))
+        }
+
+        Divider()
+
+        Menu("Start New Timer") {
             ForEach(CountdownTimer.presets, id: \.seconds) { preset in
-                Button("Start \(preset.title)") { timer.start(presetSeconds: preset.seconds) }
+                Button(preset.title) {
+                    store.idleOrNewTimer().start(presetSeconds: preset.seconds)
+                }
             }
         }
 
@@ -655,5 +828,37 @@ struct MenuBarMenu: View {
         }
         Button("Quit Countdown") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
+    }
+}
+
+/// One timer in the menu bar menu, with its own actions.
+private struct MenuBarTimerItem: View {
+    @ObservedObject var timer: CountdownTimer
+    let name: String
+
+    var body: some View {
+        switch timer.state {
+        case .running:
+            Menu("\(name) — \(timer.remainingText)") {
+                Button("Pause") { timer.pause() }
+                Button("Add 1 Minute") { timer.addTime(60) }
+                if timer.reminderRinging {
+                    Button("Silence Reminder") { timer.silenceReminder() }
+                }
+                Button("Reset") { timer.reset() }
+            }
+        case .paused:
+            Menu("\(name) — paused at \(timer.remainingText)") {
+                Button("Resume") { timer.resume() }
+                Button("Add 1 Minute") { timer.addTime(60) }
+                Button("Reset") { timer.reset() }
+            }
+        case .idle, .finished:
+            Menu(name) {
+                ForEach(CountdownTimer.presets, id: \.seconds) { preset in
+                    Button("Start \(preset.title)") { timer.start(presetSeconds: preset.seconds) }
+                }
+            }
+        }
     }
 }

@@ -2,9 +2,10 @@ import Foundation
 import AppKit
 import Combine
 
-/// Holds all countdown state. Every method is called on the main thread
+/// One countdown. Several can run at once (see `TimerStore`); the sound and reminder
+/// settings are shared (see `AppSettings`). Every method is called on the main thread
 /// (UI actions and a main-run-loop timer).
-final class CountdownTimer: ObservableObject {
+final class CountdownTimer: ObservableObject, Identifiable {
     enum State { case idle, running, paused, finished }
 
     struct Preset {
@@ -22,6 +23,9 @@ final class CountdownTimer: ObservableObject {
         Preset(title: "1 hour", short: "1h", seconds: 60 * 60),
     ]
 
+    let id = UUID()
+    private let settings = AppSettings.shared
+
     // MARK: Duration being set up
 
     // Out-of-range values (e.g. typed into a field) are clamped; only reassign when needed.
@@ -35,23 +39,6 @@ final class CountdownTimer: ObservableObject {
         didSet { let v = Self.clamp(seconds, 0...59); if v != seconds { seconds = v } }
     }
     @Published var label = ""
-    @Published var soundName: String {
-        didSet { UserDefaults.standard.set(soundName, forKey: Self.soundKey) }
-    }
-    /// Master switch for the reminders.
-    @Published var remindersEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(remindersEnabled, forKey: Self.remindersEnabledKey)
-            if state == .running { run() }  // reschedule the notifications
-        }
-    }
-    /// Minutes before the end at which a "… minutes left" notification pops up.
-    @Published private(set) var reminderMinutes: [Int] {
-        didSet {
-            UserDefaults.standard.set(reminderMinutes, forKey: Self.remindersKey)
-            if state == .running { run() }  // reschedule the notifications
-        }
-    }
 
     // MARK: Running countdown
 
@@ -59,42 +46,28 @@ final class CountdownTimer: ObservableObject {
     @Published private(set) var remaining: TimeInterval = 0
     @Published private(set) var total: TimeInterval = 0
     @Published private(set) var endDate: Date?
-    /// False when notifications are turned off for Countdown in System Settings.
-    @Published private(set) var notificationsAllowed = true
     /// Reminders (minutes) that have already gone off in this countdown; shown as off.
     @Published private(set) var firedReminders: Set<Int> = []
+    /// True while a reminder is chiming (it can be silenced).
+    @Published private(set) var reminderRinging = false
 
-    /// Reminder times offered as buttons; any other number can be added too.
-    static let reminderChoices = [1, 2, 3, 5, 10, 15, 30]
-    static let maxReminderMinutes = 999
-
-    private static let soundKey = "alertSound"
-    private static let remindersKey = "reminderMinutes"
-    private static let remindersEnabledKey = "remindersEnabled"
     private var lastDuration: TimeInterval = 0
-    /// Reminder times (seconds before the end) still to chime in this run.
+    /// Reminder times (seconds before the end) still to go off in this run.
     private var pendingReminders: [TimeInterval] = []
-    private var becameActive: AnyCancellable?
+    /// Notification ids this timer has scheduled, so it can cancel just its own.
+    private var scheduledNotifications: [String] = []
+    private var remindersChanged: AnyCancellable?
     private var ticker: AnyCancellable?
     private var activity: NSObjectProtocol?
     private let alarm = AlarmPlayer()
 
     init() {
-        let saved = UserDefaults.standard.string(forKey: Self.soundKey)
-        soundName = saved.flatMap { AlarmPlayer.sounds.contains($0) ? $0 : nil } ?? "Glass"
-        let savedReminders = UserDefaults.standard.array(forKey: Self.remindersKey) as? [Int]
-        reminderMinutes = savedReminders ?? [5, 2, 1]
-        remindersEnabled = UserDefaults.standard.object(forKey: Self.remindersEnabledKey) as? Bool ?? true
-
-        // Re-check whenever the app comes to the front, e.g. after visiting System Settings.
-        becameActive = NotificationCenter.default
-            .publisher(for: NSApplication.didBecomeActiveNotification)
-            .merge(with: NotificationCenter.default.publisher(for: Notifier.permissionAnswered))
-            .sink { [weak self] _ in self?.refreshNotificationStatus() }
-    }
-
-    func refreshNotificationStatus() {
-        Notifier.checkAllowed { [weak self] allowed in self?.notificationsAllowed = allowed }
+        alarm.onReminderEnded = { [weak self] in self?.reminderRinging = false }
+        // Reschedule when the reminder settings change mid-countdown.
+        remindersChanged = settings.remindersChanged.sink { [weak self] in
+            guard let self, self.state == .running else { return }
+            self.run()
+        }
     }
 
     var configuredDuration: TimeInterval {
@@ -107,9 +80,6 @@ final class CountdownTimer: ObservableObject {
     var progress: Double { total > 0 ? remaining / total : 0 }
 
     var remainingText: String { Self.format(remaining) }
-
-    /// Reminders that are actually in use (none when the switch is off).
-    var activeReminderMinutes: [Int] { remindersEnabled ? reminderMinutes : [] }
 
     /// Exact time left at a moment, for smooth animation between ticks.
     func remaining(at date: Date) -> TimeInterval {
@@ -139,7 +109,8 @@ final class CountdownTimer: ObservableObject {
         guard state == .running, let end = endDate else { return }
         remaining = max(0, end.timeIntervalSinceNow)
         stopTicking()
-        Notifier.cancel()
+        silenceReminder()
+        cancelNotifications()
         endDate = nil
         state = .paused
     }
@@ -156,7 +127,8 @@ final class CountdownTimer: ObservableObject {
     func reset() {
         stopTicking()
         alarm.stop()
-        Notifier.cancel()
+        silenceReminder()
+        cancelNotifications()
         state = .idle
         remaining = 0
         total = 0
@@ -170,30 +142,15 @@ final class CountdownTimer: ObservableObject {
         total += extra
         remaining += extra
         if state == .running {
-            // Re-anchor the end date and the scheduled notification.
+            // Re-anchor the end date and the scheduled notifications.
             run()
         }
     }
 
-    func isReminderOn(_ minutes: Int) -> Bool {
-        reminderMinutes.contains(minutes)
-    }
-
-    func toggleReminder(_ minutes: Int) {
-        if isReminderOn(minutes) {
-            reminderMinutes.removeAll { $0 == minutes }
-        } else {
-            addReminder(minutes)
-        }
-    }
-
-    func addReminder(_ minutes: Int) {
-        guard (1...Self.maxReminderMinutes).contains(minutes), !isReminderOn(minutes) else { return }
-        reminderMinutes = (reminderMinutes + [minutes]).sorted(by: >)
-    }
-
-    func previewSound() {
-        alarm.preview(named: soundName)
+    /// Stops a reminder that is still chiming.
+    func silenceReminder() {
+        alarm.stopReminder(notify: false)
+        reminderRinging = false
     }
 
     // MARK: Internals
@@ -201,6 +158,7 @@ final class CountdownTimer: ObservableObject {
     private func start(duration: TimeInterval) {
         guard duration > 0 else { return }
         alarm.stop()
+        silenceReminder()
         lastDuration = duration
         total = duration
         remaining = duration
@@ -213,18 +171,23 @@ final class CountdownTimer: ObservableObject {
         endDate = Date().addingTimeInterval(remaining)
         state = .running
 
-        Notifier.cancel()
-        Notifier.schedule(id: Notifier.finishedID, after: remaining,
-                          title: "Time's up!", body: finishedMessage, sound: true)
+        cancelNotifications()
+        let finishedID = Notifier.finishedID(id)
+        Notifier.schedule(id: finishedID, after: remaining,
+                          title: finishedTitle, body: finishedMessage, sound: true)
+        scheduledNotifications.append(finishedID)
+
         // "5 minutes left" etc. Only ones still ahead; one equal to the full duration would pop up at once.
-        pendingReminders = activeReminderMinutes
+        pendingReminders = settings.activeReminderMinutes
             .map { TimeInterval($0 * 60) }
             .filter { $0 < remaining - 0.5 }
         // Reminders that are ahead again (e.g. after +1 min) count as not yet fired.
         firedReminders.subtract(pendingReminders.map { Int($0 / 60) })
         for offset in pendingReminders {
-            Notifier.schedule(id: Notifier.warningID(offset), after: remaining - offset,
+            let warningID = Notifier.warningID(id, offset)
+            Notifier.schedule(id: warningID, after: remaining - offset,
                               title: Self.timeLeftText(offset), body: warningBody, sound: false)
+            scheduledNotifications.append(warningID)
         }
 
         // Keep App Nap from delaying the alert while the app is in the background.
@@ -250,7 +213,9 @@ final class CountdownTimer: ObservableObject {
         if !due.isEmpty {
             pendingReminders.removeAll { due.contains($0) }
             firedReminders.formUnion(due.map { Int($0 / 60) })
-            alarm.chime(named: soundName)
+            let length = settings.reminderLength
+            alarm.startReminder(named: settings.soundName, duration: length)
+            reminderRinging = length > 0
         }
     }
 
@@ -263,15 +228,25 @@ final class CountdownTimer: ObservableObject {
         }
     }
 
+    private func cancelNotifications() {
+        Notifier.cancel(ids: scheduledNotifications)
+        scheduledNotifications = []
+    }
+
     private func finish() {
         stopTicking()
+        silenceReminder()
         remaining = 0
         endDate = nil
         state = .finished
         pendingReminders = []
-        alarm.start(named: soundName)
+        alarm.start(named: settings.soundName)
         // Show the alert outside the timer callback.
         DispatchQueue.main.async { [weak self] in self?.presentAlert() }
+    }
+
+    private var finishedTitle: String {
+        label.isEmpty ? "Time's up!" : "\(label): time's up!"
     }
 
     private var finishedMessage: String {
@@ -297,7 +272,7 @@ final class CountdownTimer: ObservableObject {
         NSApp.requestUserAttention(.criticalRequest)
 
         let alert = NSAlert()
-        alert.messageText = "Time's up!"
+        alert.messageText = finishedTitle
         alert.informativeText = finishedMessage
         alert.alertStyle = .informational
         alert.icon = NSImage(systemSymbolName: "alarm.fill", accessibilityDescription: "Alarm")
@@ -307,7 +282,7 @@ final class CountdownTimer: ObservableObject {
 
         let response = alert.runModal()
         alarm.stop()
-        Notifier.cancel()
+        cancelNotifications()
 
         // The user may have reset or restarted from the menu bar while the alert was open.
         guard state == .finished else { return }
