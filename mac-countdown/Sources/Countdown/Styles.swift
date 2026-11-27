@@ -792,21 +792,19 @@ final class StarfieldClock {
     }
 }
 
-/// Deep space behind the window: soft nebula clouds and an even field of stars, each with its
-/// own random size and brightness (a few big ones sparkle). The field drifts slowly, nearer
-/// stars faster than far ones, and speeds up as the countdown runs out. When time is up, a
+/// Deep space behind the window: soft nebula clouds and a field of stars flying towards us,
+/// spread over the whole window, each with its own random size and brightness (a few big ones
+/// sparkle). The flight speeds up as the countdown runs out, into streaks. When time is up, a
 /// black hole pulls every star in, spiralling into the dial, and the window goes dark.
 struct StarfieldView: View {
     @ObservedObject var timer: CountdownTimer
-    /// Where the black hole forms (the dial's centre).
+    /// Where the stars fly out from, and where the black hole forms (the dial's centre).
     var center: CGPoint
 
     @Environment(\.animationsPaused) private var animationsPaused
     @State private var clock = StarfieldClock()
 
     private static let starCount = 320
-    /// Drift direction: gently down and to the left.
-    private static let direction = (x: -0.34, y: 0.94)
 
     private struct Nebula {
         let x, y, radius, stretch, tilt, alpha: Double
@@ -841,15 +839,15 @@ struct StarfieldView: View {
         .allowsHitTesting(false)
     }
 
-    /// Drift speed in window heights per second: slow, accelerating steeply towards the end.
+    /// Flights per second: a slow drift, accelerating steeply towards the end.
     private static func speed(for timer: CountdownTimer, at date: Date) -> Double {
         switch timer.state {
-        case .idle: return 0.004
-        case .paused: return 0.0012
-        case .finished: return 0.006
+        case .idle: return 0.01
+        case .paused: return 0.003
+        case .finished: return 0.02
         case .running:
             let elapsed = 1 - timer.progress(at: date)
-            return 0.004 + 0.14 * pow(elapsed, 2.2)
+            return 0.01 + 0.45 * pow(elapsed, 2.2)
         }
     }
 
@@ -886,22 +884,29 @@ struct StarfieldView: View {
 
         for i in 0..<starCount {
             let s = Double(i)
-            // Parallax: nearer stars (higher factor) drift faster. Sizes are independent of this.
-            let depth = 0.25 + 0.75 * hash(s * 3.37)
-            let shift = travel * depth
-            let fx = fract(hash(s * 1.31) + shift * direction.x * h / w)
-            let fy = fract(hash(s * 2.71) + shift * direction.y)
-            // Slightly larger than the window, so stars don't pop in at the edges.
-            var p = CGPoint(x: (fx * 1.1 - 0.05) * w, y: (fy * 1.1 - 0.05) * h)
+            // Each star has its own spot in the distance, spread evenly over the window, and flies
+            // towards us from there: it moves out from the dial's centre, faster as it nears
+            // (1× → 4× its distance from the centre), then starts again far away.
+            let anchor = CGPoint(x: (hash(s * 1.31) * 1.1 - 0.05) * w - center.x,
+                                 y: (hash(s * 2.71) * 1.1 - 0.05) * h - center.y)
+            let pace = 0.6 + 0.8 * hash(s * 3.37)
+            let cycle = fract(hash(s * 4.13) + travel * pace)  // 0 → 1 over one flight
+            func position(_ c: Double) -> CGPoint {
+                let zoom = 1 / (1 - 0.75 * c)
+                return CGPoint(x: center.x + anchor.x * zoom, y: center.y + anchor.y * zoom)
+            }
+            var p = position(cycle)
+            guard p.x > -20, p.x < w + 20, p.y > -20, p.y < h + 20 else { continue }
 
+            // Its own random size (mostly tiny, a few big), only a little bigger as it nears.
             let sizeRoll = hash(s * 5.17)
-            var radius = 0.35 + 1.5 * pow(sizeRoll, 3)  // mostly tiny, a few big
-            var alpha = (0.35 + 0.65 * hash(s * 6.29))
+            var radius = (0.35 + 1.5 * pow(sizeRoll, 3)) * (1 + 0.5 * cycle)
+            let fadeIn = min(cycle / 0.12, 1)  // appears gently instead of popping in
+            var alpha = (0.35 + 0.65 * hash(s * 6.29)) * fadeIn
                 * (0.7 + 0.3 * sin(t * (0.8 + 1.6 * hash(s * 8.1)) + s * 2.3))
 
-            // When moving fast, each star leaves a short streak behind it.
-            let streak = speed * depth * 0.3 * h
-            var tail = CGPoint(x: p.x - direction.x * streak, y: p.y - direction.y * streak)
+            // When flying fast, each star leaves a streak pointing back towards the centre.
+            var tail = position(max(cycle - speed * pace * 0.25, 0))
 
             // Black hole: each star falls in (with a slight delay of its own), spiralling faster.
             if pull > 0 {
