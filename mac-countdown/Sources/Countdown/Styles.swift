@@ -39,7 +39,7 @@ struct SpaceBackground: View {
                            startPoint: .top, endPoint: .bottom)
             // Soft clouds drawn as radial gradients (cheaper than blurring).
             Circle()
-                .fill(RadialGradient(colors: [Theme.gold.opacity(0.12), Theme.gold.opacity(0)],
+                .fill(RadialGradient(colors: [Theme.violet.opacity(0.12), Theme.violet.opacity(0)],
                                      center: .center, startRadius: 0, endRadius: 230))
                 .frame(width: 460, height: 460)
                 .offset(x: -130, y: -220)
@@ -792,18 +792,39 @@ final class StarfieldClock {
     }
 }
 
-/// Flying through space: stars stream outward from the dial, slowly at first and faster and
-/// faster (into light streaks) as the countdown runs out. When time is up, a black hole
-/// pulls every star in, spiralling into the dial, and the window goes dark.
+/// Deep space behind the window: soft nebula clouds and an even field of stars, each with its
+/// own random size and brightness (a few big ones sparkle). The field drifts slowly, nearer
+/// stars faster than far ones, and speeds up as the countdown runs out. When time is up, a
+/// black hole pulls every star in, spiralling into the dial, and the window goes dark.
 struct StarfieldView: View {
     @ObservedObject var timer: CountdownTimer
-    /// Where the stars stream from, and where the black hole forms.
+    /// Where the black hole forms (the dial's centre).
     var center: CGPoint
 
     @Environment(\.animationsPaused) private var animationsPaused
     @State private var clock = StarfieldClock()
 
-    private static let starCount = 160
+    private static let starCount = 320
+    /// Drift direction: gently down and to the left.
+    private static let direction = (x: -0.34, y: 0.94)
+
+    private struct Nebula {
+        let x, y, radius, stretch, tilt, alpha: Double
+        let color: Color
+    }
+
+    private static let nebulae: [Nebula] = [
+        Nebula(x: 0.80, y: 0.55, radius: 0.55, stretch: 1.8, tilt: -0.9, alpha: 0.16,
+               color: Color(red: 0.55, green: 0.32, blue: 0.75)),
+        Nebula(x: 0.25, y: 0.75, radius: 0.60, stretch: 2.0, tilt: -0.5, alpha: 0.14,
+               color: Color(red: 0.25, green: 0.32, blue: 0.72)),
+        Nebula(x: 0.15, y: 0.20, radius: 0.45, stretch: 1.5, tilt: 0.6, alpha: 0.10,
+               color: Color(red: 0.30, green: 0.40, blue: 0.80)),
+        Nebula(x: 0.65, y: 0.15, radius: 0.40, stretch: 1.6, tilt: 0.3, alpha: 0.10,
+               color: Color(red: 0.60, green: 0.35, blue: 0.70)),
+        Nebula(x: 0.50, y: 0.95, radius: 0.50, stretch: 2.2, tilt: -0.2, alpha: 0.12,
+               color: Color(red: 0.40, green: 0.30, blue: 0.75)),
+    ]
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 24, paused: animationsPaused)) { context in
@@ -820,75 +841,112 @@ struct StarfieldView: View {
         .allowsHitTesting(false)
     }
 
-    /// Depth travelled per second: a slow drift, accelerating steeply towards the end.
+    /// Drift speed in window heights per second: slow, accelerating steeply towards the end.
     private static func speed(for timer: CountdownTimer, at date: Date) -> Double {
         switch timer.state {
-        case .idle: return 0.012
-        case .paused: return 0.004
-        case .finished: return 0.05
+        case .idle: return 0.004
+        case .paused: return 0.0012
+        case .finished: return 0.006
         case .running:
             let elapsed = 1 - timer.progress(at: date)
-            return 0.012 + 0.32 * pow(elapsed, 2.2)
+            return 0.004 + 0.14 * pow(elapsed, 2.2)
         }
+    }
+
+    private static func disc(_ c: CGPoint, _ r: CGFloat) -> Path {
+        Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
     }
 
     private static func draw(in g: inout GraphicsContext, size: CGSize, center: CGPoint, time t: Double,
                              travel: Double, speed: Double, hole: Double) {
-        let unit = min(size.width, size.height)
-        let farthest = hypot(max(center.x, size.width - center.x), max(center.y, size.height - center.y))
+        let w = size.width, h = size.height
+        let unit = min(w, h)
         let pull = hole * hole * (3 - 2 * hole)  // eased 0 → 1
-        // How far back along its path each star's streak reaches (longer when faster).
-        let trail = min(speed * 0.35, 0.18)
+
+        // Nebula: soft violet and indigo clouds, drifting very slowly.
+        var clouds = g
+        clouds.blendMode = .plusLighter
+        for (i, n) in nebulae.enumerated() {
+            let wobble = Double(i) * 1.9
+            let c = CGPoint(x: w * (n.x + 0.03 * sin(t * 0.02 + wobble)),
+                            y: h * (n.y + 0.03 * cos(t * 0.017 + wobble)))
+            let r = unit * n.radius
+            var layer = clouds
+            layer.translateBy(x: c.x, y: c.y)
+            layer.rotate(by: .radians(n.tilt))
+            layer.scaleBy(x: n.stretch, y: 1)
+            layer.translateBy(x: -c.x, y: -c.y)
+            layer.fill(disc(c, r), with: .radialGradient(
+                Gradient(colors: [n.color.opacity(n.alpha), n.color.opacity(0)]),
+                center: c, startRadius: 0, endRadius: r))
+        }
+
+        var glow = g
+        glow.blendMode = .plusLighter
 
         for i in 0..<starCount {
             let s = Double(i)
-            let angle = hash(s * 1.31) * 2 * .pi
-            let spread = 0.12 + 0.88 * hash(s * 2.71)
-            // Depth: 1 = far away (near the centre), 0 = rushing past the viewer.
-            let depth = 1 - fract(hash(s * 4.13) + travel)
-            func projected(_ z: Double) -> Double { spread * unit * 0.08 / (0.05 + 0.95 * z) }
+            // Parallax: nearer stars (higher factor) drift faster. Sizes are independent of this.
+            let depth = 0.25 + 0.75 * hash(s * 3.37)
+            let shift = travel * depth
+            let fx = fract(hash(s * 1.31) + shift * direction.x * h / w)
+            let fy = fract(hash(s * 2.71) + shift * direction.y)
+            // Slightly larger than the window, so stars don't pop in at the edges.
+            var p = CGPoint(x: (fx * 1.1 - 0.05) * w, y: (fy * 1.1 - 0.05) * h)
 
-            var r = projected(depth)
-            guard r < farthest + 20 else { continue }
-            var a = angle
-            var tailR = projected(min(depth + trail, 1))
-            var tailA = angle
+            let sizeRoll = hash(s * 5.17)
+            var radius = 0.35 + 1.5 * pow(sizeRoll, 3)  // mostly tiny, a few big
+            var alpha = (0.35 + 0.65 * hash(s * 6.29))
+                * (0.7 + 0.3 * sin(t * (0.8 + 1.6 * hash(s * 8.1)) + s * 2.3))
 
-            let near = 1 - depth
-            var alpha = (0.15 + 0.85 * near) * (0.75 + 0.25 * sin(t * 1.7 + s * 2.3))
-            var width = 0.6 + 1.9 * near
+            // When moving fast, each star leaves a short streak behind it.
+            let streak = speed * depth * 0.3 * h
+            var tail = CGPoint(x: p.x - direction.x * streak, y: p.y - direction.y * streak)
 
             // Black hole: each star falls in (with a slight delay of its own), spiralling faster.
             if pull > 0 {
+                let dx = p.x - center.x, dy = p.y - center.y
+                let r = hypot(dx, dy)
+                let angle = atan2(dy, dx)
                 let delay = hash(s * 5.97) * 0.45
                 let k = min(max((pull - delay) / 0.55, 0), 1)
-                let swirl = 2.5 + 4 * (1 - spread)
+                let swirl = 2.5 + 3.5 * hash(s * 9.3)
                 let fall = k * k
-                let fallBefore = max(0, k - 0.06) * max(0, k - 0.06)
-                tailR = r * (1 - fallBefore)
-                tailA = angle + fallBefore * swirl
-                r *= 1 - fall
-                a += fall * swirl
+                let before = max(0, k - 0.06) * max(0, k - 0.06)
+                p = CGPoint(x: center.x + cos(angle + fall * swirl) * r * (1 - fall),
+                            y: center.y + sin(angle + fall * swirl) * r * (1 - fall))
+                tail = CGPoint(x: center.x + cos(angle + before * swirl) * r * (1 - before),
+                               y: center.y + sin(angle + before * swirl) * r * (1 - before))
                 alpha *= 1 - 0.6 * fall
-                width *= 1 - 0.5 * fall
-                if r < unit * 0.02 { continue }
+                radius *= 1 - 0.5 * fall
+                if r * (1 - fall) < unit * 0.02 { continue }
             }
 
-            let head = CGPoint(x: center.x + cos(a) * r, y: center.y + sin(a) * r)
-            let tail = CGPoint(x: center.x + cos(tailA) * tailR, y: center.y + sin(tailA) * tailR)
             let color = tint(s)
-            if hypot(head.x - tail.x, head.y - tail.y) > 1.5 {
-                var streak = Path()
-                streak.move(to: tail)
-                streak.addLine(to: head)
-                g.stroke(streak,
+            if hypot(p.x - tail.x, p.y - tail.y) > 1.2 {
+                var line = Path()
+                line.move(to: tail)
+                line.addLine(to: p)
+                g.stroke(line,
                          with: .linearGradient(Gradient(colors: [color.opacity(0), color.opacity(alpha)]),
-                                               startPoint: tail, endPoint: head),
-                         style: StrokeStyle(lineWidth: width, lineCap: .round))
+                                               startPoint: tail, endPoint: p),
+                         style: StrokeStyle(lineWidth: radius * 2, lineCap: .round))
             } else {
-                g.fill(Path(ellipseIn: CGRect(x: head.x - width / 2, y: head.y - width / 2,
-                                              width: width, height: width)),
-                       with: .color(color.opacity(alpha)))
+                g.fill(disc(p, radius), with: .color(color.opacity(alpha)))
+            }
+
+            // A few bright stars sparkle: a soft glow and cross-shaped glints.
+            if sizeRoll > 0.965 {
+                let glint = radius * 6 * (0.8 + 0.2 * sin(t * 1.3 + s))
+                glow.fill(disc(p, radius * 4), with: .radialGradient(
+                    Gradient(colors: [color.opacity(0.5 * alpha), color.opacity(0)]),
+                    center: p, startRadius: 0, endRadius: radius * 4))
+                var cross = Path()
+                cross.move(to: CGPoint(x: p.x - glint, y: p.y))
+                cross.addLine(to: CGPoint(x: p.x + glint, y: p.y))
+                cross.move(to: CGPoint(x: p.x, y: p.y - glint))
+                cross.addLine(to: CGPoint(x: p.x, y: p.y + glint))
+                glow.stroke(cross, with: .color(color.opacity(0.6 * alpha)), lineWidth: 0.6)
             }
         }
 
@@ -896,25 +954,22 @@ struct StarfieldView: View {
         if hole > 0 {
             let flare = sin(.pi * min(hole * 1.2, 1))
             let ring = unit * 0.38
-            var glow = g
-            glow.blendMode = .plusLighter
-            glow.fill(Path(ellipseIn: CGRect(x: center.x - ring, y: center.y - ring, width: 2 * ring, height: 2 * ring)),
-                      with: .radialGradient(
-                          Gradient(stops: [
-                              .init(color: .clear, location: 0.6),
-                              .init(color: Color(red: 1.0, green: 0.55, blue: 0.25).opacity(0.45 * flare), location: 0.75),
-                              .init(color: .clear, location: 1),
-                          ]),
-                          center: center, startRadius: 0, endRadius: ring))
+            glow.fill(disc(center, ring), with: .radialGradient(
+                Gradient(stops: [
+                    .init(color: .clear, location: 0.6),
+                    .init(color: Color(red: 1.0, green: 0.55, blue: 0.25).opacity(0.45 * flare), location: 0.75),
+                    .init(color: .clear, location: 1),
+                ]),
+                center: center, startRadius: 0, endRadius: ring))
             g.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.black.opacity(0.7 * pull)))
         }
     }
 
-    /// Mostly white stars, with a few pale blue and warm ones.
+    /// Mostly white stars, with some pale blue and a few warm orange ones.
     private static func tint(_ s: Double) -> Color {
         let h = hash(s * 7.7)
         if h < 0.15 { return Color(red: 0.72, green: 0.85, blue: 1.0) }
-        if h < 0.22 { return Color(red: 1.0, green: 0.9, blue: 0.76) }
+        if h < 0.22 { return Color(red: 1.0, green: 0.78, blue: 0.55) }
         return .white
     }
 
