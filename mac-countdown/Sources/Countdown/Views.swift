@@ -53,7 +53,7 @@ private struct SetupView: View {
             HStack(spacing: 6) {
                 ForEach(CountdownTimer.presets, id: \.seconds) { preset in
                     Button(preset.short) { timer.start(presetSeconds: preset.seconds) }
-                        .buttonStyle(PillButtonStyle())
+                        .buttonStyle(ChipStyle())
                         .help("Start \(preset.title)")
                 }
             }
@@ -208,41 +208,45 @@ private struct RunningView: View {
         }
     }
 
+    /// Compact control bar: ✕ cancel, a glowing play/pause button, and +1 minute.
     private var controls: some View {
-        HStack {
-            Button("Cancel") { timer.reset() }
-                .buttonStyle(CircleButtonStyle(tint: .primary))
-                .keyboardShortcut(.cancelAction)
-
-            Spacer()
-
-            if timer.isActive {
-                Button {
-                    timer.addTime(60)
-                } label: {
-                    Label("1 min", systemImage: "plus")
-                }
-                .buttonStyle(PillButtonStyle())
-                .transition(.scale.combined(with: .opacity))
+        HStack(spacing: 26) {
+            Button {
+                timer.reset()
+            } label: {
+                Image(systemName: "xmark")
             }
+            .buttonStyle(GhostIconButtonStyle())
+            .keyboardShortcut(.cancelAction)
+            .help("Cancel (Esc)")
 
-            Spacer()
-
-            if timer.state == .running {
-                Button("Pause") { timer.pause() }
-                    .buttonStyle(CircleButtonStyle(tint: .orange))
-                    .keyboardShortcut(.space, modifiers: [])
-                    .transition(.scale.combined(with: .opacity))
-            } else if timer.state == .paused {
-                Button("Resume") { timer.resume() }
-                    .buttonStyle(CircleButtonStyle(tint: .green))
-                    .keyboardShortcut(.space, modifiers: [])
-                    .transition(.scale.combined(with: .opacity))
-            } else {
-                Color.clear.frame(width: 68, height: 68)
+            Button {
+                timer.togglePause()
+            } label: {
+                Image(systemName: timer.state == .running ? "pause.fill" : "play.fill")
+                    .contentTransition(.symbolEffect(.replace))
             }
+            .buttonStyle(PrimaryCircleButtonStyle(tint: tint))
+            .keyboardShortcut(.space, modifiers: [])
+            .disabled(!timer.isActive)
+            .opacity(timer.isActive ? 1 : 0)
+            .help(timer.state == .running ? "Pause (Space)" : "Resume (Space)")
+
+            Button {
+                timer.addTime(60)
+            } label: {
+                Text("+1m")
+            }
+            .buttonStyle(GhostIconButtonStyle())
+            .disabled(!timer.isActive)
+            .help("Add 1 minute")
         }
-        .frame(width: 300)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 8)
+        .background(
+            Capsule().fill(Color.primary.opacity(0.04))
+        )
+        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06)))
         .animation(.spring(response: 0.35, dampingFraction: 0.7), value: timer.state)
     }
 
@@ -354,85 +358,81 @@ private struct SettingsCard: View {
     var body: some View {
         VStack(spacing: 0) {
             if !timer.notificationsAllowed {
-                SettingRow(icon: "bell.slash.fill", color: .red, title: "Notifications are off") {
-                    Button("Turn On…") { Notifier.openSettings() }
-                        .buttonStyle(PillButtonStyle())
+                SettingRow(icon: "bell.slash", title: "Notifications are off", iconColor: .red) {
+                    Button("Turn On") { Notifier.openSettings() }
+                        .buttonStyle(ChipStyle(isOn: true))
                         .help("Open System Settings → Notifications → Countdown and turn on Allow Notifications")
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
                 divider
             }
 
-            SettingRow(icon: "tag.fill", color: .blue, title: "Label") {
+            SettingRow(icon: "tag", title: "Label") {
                 if timer.state == .idle {
-                    TextField("None", text: $timer.label)
+                    TextField("Add label", text: $timer.label)
                         .textFieldStyle(.plain)
                         .multilineTextAlignment(.trailing)
                         .foregroundStyle(.secondary)
-                        .frame(maxWidth: 190)
+                        .frame(maxWidth: 200)
                 } else {
                     Text(timer.label.isEmpty ? "None" : timer.label)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
 
             divider
             ReminderSection()
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
 
             divider
             SoundRow()
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
         }
+        .font(.system(size: 13))
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.primary.opacity(0.045))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.primary.opacity(0.035))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.07))
         )
     }
 
     private var divider: some View {
-        Divider().padding(.leading, 44)
+        Rectangle()
+            .fill(Color.primary.opacity(0.06))
+            .frame(height: 1)
+            .padding(.leading, 42)
     }
 }
 
-/// System Settings–style row: coloured icon tile, title, and a control on the right.
+/// One settings row: thin monochrome icon, title, and a control on the right.
 private struct SettingRow<Trailing: View>: View {
     let icon: String
-    let color: Color
     let title: String
+    var iconColor: Color = .secondary
     let trailing: Trailing
 
-    init(icon: String, color: Color, title: String, @ViewBuilder trailing: () -> Trailing) {
+    init(icon: String, title: String, iconColor: Color = .secondary,
+         @ViewBuilder trailing: () -> Trailing) {
         self.icon = icon
-        self.color = color
         self.title = title
+        self.iconColor = iconColor
         self.trailing = trailing()
     }
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 22, height: 22)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(color.gradient)
-                )
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(iconColor)
+                .frame(width: 16)
             Text(title)
+                .foregroundStyle(.primary)
             Spacer(minLength: 8)
             trailing
         }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 42)
     }
 }
 
@@ -440,8 +440,8 @@ private struct SettingRow<Trailing: View>: View {
 private struct ReminderSection: View {
     @EnvironmentObject private var timer: CountdownTimer
     @State private var customMinutes: Int?
-
-    private let columns = [GridItem(.adaptive(minimum: 36), spacing: 6)]
+    @State private var addingCustom = false
+    @FocusState private var customFocused: Bool
 
     /// The standard choices plus any custom values the user added.
     private var options: [Int] {
@@ -449,52 +449,67 @@ private struct ReminderSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SettingRow(icon: "bell.badge.fill", color: .orange, title: "Reminders") {
+        VStack(alignment: .leading, spacing: 0) {
+            SettingRow(icon: "bell", title: "Reminders") {
                 Text(summary)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
                     .contentTransition(.numericText())
                     .animation(.snappy, value: summary)
             }
 
-            Group {
-                LazyVGrid(columns: columns, spacing: 6) {
-                    ForEach(options, id: \.self) { minutes in
-                        let isOn = timer.isReminderOn(minutes)
-                        Button("\(minutes)m") {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                timer.toggleReminder(minutes)
-                            }
+            FlowLayout(spacing: 6) {
+                ForEach(options, id: \.self) { minutes in
+                    let isOn = timer.isReminderOn(minutes)
+                    Button("\(minutes)m") {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            timer.toggleReminder(minutes)
                         }
-                        .buttonStyle(PillButtonStyle(filled: isOn, compact: true))
-                        .help(isOn ? "Turn off the \(minutes)-minute reminder"
-                                   : "Remind me \(minutes) min before the end")
                     }
+                    .buttonStyle(ChipStyle(isOn: isOn))
+                    .help(isOn ? "Turn off the \(minutes)-minute reminder"
+                               : "Remind me \(minutes) min before the end")
                 }
-
-                HStack(spacing: 6) {
-                    Text("Custom")
-                        .foregroundStyle(.secondary)
-                    TextField("0", value: $customMinutes, format: .number)
-                        .textFieldStyle(.plain)
-                        .multilineTextAlignment(.center)
-                        .frame(width: 40)
-                        .padding(.vertical, 3)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(Color.primary.opacity(0.07))
-                        )
-                        .onSubmit(addCustom)
-                    Text("min before the end")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Add", action: addCustom)
-                        .buttonStyle(PillButtonStyle())
-                        .disabled(customMinutes == nil)
-                }
-                .font(.callout)
+                customChip
             }
-            .padding(.leading, 32)
+            .padding(.leading, 42)
+            .padding(.trailing, 14)
+            .padding(.bottom, 12)
+        }
+    }
+
+    /// "+ Custom" chip that turns into a small number field.
+    @ViewBuilder private var customChip: some View {
+        if addingCustom {
+            HStack(spacing: 2) {
+                TextField("0", value: $customMinutes, format: .number)
+                    .textFieldStyle(.plain)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 28)
+                    .focused($customFocused)
+                    .onSubmit(addCustom)
+                    .onExitCommand { closeCustom() }
+                Text("m")
+                    .foregroundStyle(.secondary)
+            }
+            .font(.system(size: 12, weight: .medium))
+            .padding(.horizontal, 10)
+            .frame(height: 26)
+            .background(Capsule().fill(Color.primary.opacity(0.08)))
+            .overlay(Capsule().strokeBorder(Color.accentColor.opacity(0.6)))
+            .transition(.scale.combined(with: .opacity))
+            .onChange(of: customFocused) { _, focused in
+                if !focused { closeCustom() }
+            }
+        } else {
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) { addingCustom = true }
+                DispatchQueue.main.async { customFocused = true }
+            } label: {
+                Label("Custom", systemImage: "plus")
+            }
+            .buttonStyle(ChipStyle())
+            .help("Add a reminder at any number of minutes before the end")
         }
     }
 
@@ -505,11 +520,17 @@ private struct ReminderSection: View {
     }
 
     private func addCustom() {
-        guard let minutes = customMinutes else { return }
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            timer.addReminder(minutes)
+        if let minutes = customMinutes {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                timer.addReminder(minutes)
+            }
         }
+        closeCustom()
+    }
+
+    private func closeCustom() {
         customMinutes = nil
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) { addingCustom = false }
     }
 }
 
@@ -518,22 +539,33 @@ private struct SoundRow: View {
     @State private var previews = 0
 
     var body: some View {
-        SettingRow(icon: "speaker.wave.2.fill", color: .pink, title: "Sound") {
-            Picker("Sound", selection: $timer.soundName) {
-                ForEach(AlarmPlayer.sounds, id: \.self) { Text($0) }
+        SettingRow(icon: "speaker.wave.2", title: "Sound") {
+            Menu {
+                Picker("Sound", selection: $timer.soundName) {
+                    ForEach(AlarmPlayer.sounds, id: \.self) { Text($0).tag($0) }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            } label: {
+                HStack(spacing: 4) {
+                    Text(timer.soundName)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                }
+                .foregroundStyle(.secondary)
             }
-            .labelsHidden()
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
             .fixedSize()
+
             Button {
                 previews += 1
                 timer.previewSound()
             } label: {
-                Image(systemName: "play.circle.fill")
-                    .font(.title2)
+                Image(systemName: "play.fill")
+                    .symbolEffect(.bounce, value: previews)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .symbolEffect(.bounce, value: previews)
+            .buttonStyle(GhostIconButtonStyle(size: 26))
             .help("Play this sound")
         }
     }
