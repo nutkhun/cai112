@@ -11,6 +11,7 @@ struct CountdownApp: App {
             ContentView()
                 .environmentObject(timer)
         }
+        .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
 
         // Remaining time stays visible in the menu bar, even when the window is closed.

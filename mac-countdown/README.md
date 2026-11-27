@@ -6,7 +6,8 @@ A small native Mac app (SwiftUI) that counts down from a time you set and alerts
 
 - Set hours, minutes and seconds, with an optional label (e.g. "Quiz", "Break")
 - Quick-start presets: 1, 5, 10, 15, 25 min, 1 hour
-- Progress ring, plus the time the countdown will end
+- Animated dial: the ring drains smoothly, turns orange in the last minute and red in the last 10 seconds, with dots marking your reminder times
+- Mac-style translucent window with a System Settings–style options card
 - Pause/Resume (Space), Reset (Esc), +1 minute
 - Reminder notifications showing how much time is left: pick any times before the end (default 5, 2 and 1 min)
 - When the time is up:
@@ -18,7 +19,7 @@ A small native Mac app (SwiftUI) that counts down from a time you set and alerts
 
 ## Requirements
 
-- macOS 13 Ventura or later
+- macOS 14 Sonoma or later
 - Xcode or the Xcode Command Line Tools (`xcode-select --install`)
 
 ## Build and run

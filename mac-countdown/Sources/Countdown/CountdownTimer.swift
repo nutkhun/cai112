@@ -9,16 +9,17 @@ final class CountdownTimer: ObservableObject {
 
     struct Preset {
         let title: String
+        let short: String
         let seconds: Int
     }
 
     static let presets: [Preset] = [
-        Preset(title: "1 min", seconds: 60),
-        Preset(title: "5 min", seconds: 5 * 60),
-        Preset(title: "10 min", seconds: 10 * 60),
-        Preset(title: "15 min", seconds: 15 * 60),
-        Preset(title: "25 min", seconds: 25 * 60),
-        Preset(title: "1 hour", seconds: 60 * 60),
+        Preset(title: "1 min", short: "1m", seconds: 60),
+        Preset(title: "5 min", short: "5m", seconds: 5 * 60),
+        Preset(title: "10 min", short: "10m", seconds: 10 * 60),
+        Preset(title: "15 min", short: "15m", seconds: 15 * 60),
+        Preset(title: "25 min", short: "25m", seconds: 25 * 60),
+        Preset(title: "1 hour", short: "1h", seconds: 60 * 60),
     ]
 
     // MARK: Duration being set up
@@ -80,6 +81,13 @@ final class CountdownTimer: ObservableObject {
     var progress: Double { total > 0 ? remaining / total : 0 }
 
     var remainingText: String { Self.format(remaining) }
+
+    /// Fraction of time left at an exact moment, for smooth animation between ticks.
+    func progress(at date: Date) -> Double {
+        guard total > 0 else { return 0 }
+        guard state == .running, let end = endDate else { return progress }
+        return max(0, end.timeIntervalSince(date)) / total
+    }
 
     // MARK: Controls
 
