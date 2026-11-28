@@ -3,6 +3,11 @@ const { app, BrowserWindow, Tray, Menu, ipcMain, shell, nativeImage, screen } = 
 const path = require('path');
 
 const WEBSITE = 'https://claude101.getworkdone.space';
+// The layout's natural size in CSS pixels. The window shows it zoomed to fit the screen
+// (at most 90%), so it never needs scrollbars, even with Windows display scaling.
+const DESIGN = { width: 420, height: 850 };
+const MAX_ZOOM = 0.9;
+const TITLE_BAR = 36;
 const ICON = path.join(__dirname, 'assets', 'icon.png');
 
 // Lets Windows show our notifications under the app's own name.
@@ -25,9 +30,10 @@ if (!app.requestSingleInstanceLock()) {
 
 function createWindow() {
   const workArea = screen.getPrimaryDisplay().workAreaSize;
+  const zoom = Math.min(MAX_ZOOM, (workArea.height - 24) / DESIGN.height, (workArea.width - 24) / DESIGN.width);
   win = new BrowserWindow({
-    width: 420,
-    height: Math.min(900, workArea.height - 20),
+    width: Math.round(DESIGN.width * zoom),
+    height: Math.round(DESIGN.height * zoom),
     useContentSize: true,
     resizable: false,
     maximizable: false,
@@ -37,10 +43,11 @@ function createWindow() {
     icon: ICON,
     // Our own dark title area, with Windows' minimise/close buttons drawn over it.
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#070a14', symbolColor: '#d6dcff', height: 36 },
+    titleBarOverlay: { color: '#070a14', symbolColor: '#d6dcff', height: Math.round(TITLE_BAR * zoom) },
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      zoomFactor: zoom,
       contextIsolation: true,
       nodeIntegration: false,
       // Keep counting down and sounding alarms while the window is hidden,
@@ -50,6 +57,8 @@ function createWindow() {
     },
   });
   win.removeMenu();
+  // Chromium remembers zoom per page, so set ours every time the page loads.
+  win.webContents.on('did-finish-load', () => win.webContents.setZoomFactor(zoom));
   win.loadFile(path.join(__dirname, 'src', 'index.html'));
   win.once('ready-to-show', () => win.show());
 

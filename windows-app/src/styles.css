@@ -21,7 +21,7 @@ html, body {
   color: var(--text);
   font: 15px/1.3 var(--font);
   user-select: none;
-  overflow-x: hidden;
+  overflow: hidden;  /* the window is sized to fit, so the page never scrolls */
 }
 
 button, input, select { font: inherit; color: inherit; }
