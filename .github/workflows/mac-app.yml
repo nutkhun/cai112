@@ -1,0 +1,28 @@
+name: Build Blackhole Timer for Mac
+
+on:
+  push:
+    paths: ['mac-countdown/**', '.github/workflows/mac-app.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: mac-countdown
+    steps:
+      - uses: actions/checkout@v4
+      # Builds the app, renders its icon and records the voice tones on first run.
+      - run: ./build-app.sh
+      - name: Package as a disk image
+        run: |
+          mkdir -p dmg
+          cp -R "build/Blackhole Timer.app" dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname "Blackhole Timer" -srcfolder dmg -ov -format UDZO build/BlackholeTimer-mac.dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlackholeTimer-mac
+          path: mac-countdown/build/BlackholeTimer-mac.dmg
+          retention-days: 30
