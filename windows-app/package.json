@@ -1,0 +1,54 @@
+{
+  "name": "blackhole-timer",
+  "productName": "Blackhole Timer",
+  "version": "1.0.0",
+  "description": "A countdown timer with an eclipse face, a flying starfield and a black hole when time is up.",
+  "main": "main.js",
+  "author": "CAI112",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "voices": "node scripts/embed-voices.mjs",
+    "icon": "node scripts/make-ico.mjs",
+    "dist": "electron-builder --win portable --x64",
+    "dist:installer": "electron-builder --win portable nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "38.2.2",
+    "electron-builder": "26.0.12",
+    "png-to-ico": "2.1.8",
+    "resedit": "^2.0.3"
+  },
+  "build": {
+    "appId": "com.cai112.blackholetimer",
+    "productName": "Blackhole Timer",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/icon.png",
+      "assets/getworkdone-logo.png"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "portable"
+      ],
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "BlackholeTimer-${version}-portable.exe"
+    },
+    "afterPack": "scripts/after-pack.cjs",
+    "nsis": {
+      "artifactName": "BlackholeTimer-${version}-setup.exe",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Blackhole Timer"
+    }
+  }
+}

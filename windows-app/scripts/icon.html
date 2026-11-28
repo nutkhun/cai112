@@ -1,0 +1,104 @@
+<!doctype html>
+<!-- Draws the Blackhole Timer icon on a canvas (a port of mac-countdown/scripts/make-icon.swift).
+     Used by make-ico.mjs: drawIcon(size) returns a PNG data URL. -->
+<meta charset="utf-8">
+<canvas id="c"></canvas>
+<script>
+function drawIcon(size, { withText = true, tile = true } = {}) {
+  const canvas = document.getElementById('c');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const s = size / 1024;           // everything is designed on a 1024 grid
+  ctx.setTransform(s, 0, 0, s, 0, 0);
+  ctx.clearRect(0, 0, 1024, 1024);
+  const rgba = (r, g, b, a = 1) => `rgba(${r * 255},${g * 255},${b * 255},${a})`;
+  const radial = (x, y, r, stops) => {
+    const gr = ctx.createRadialGradient(x, y, 0, x, y, r);
+    for (const [at, color] of stops) gr.addColorStop(at, color);
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  };
+
+  // Rounded tile (the body fills more of the canvas than on macOS, as Windows icons do).
+  const inset = tile ? 40 : 0, corner = 200;
+  const x0 = inset, y0 = inset, w = 1024 - 2 * inset;
+  const roundedTile = () => {
+    ctx.beginPath();
+    ctx.moveTo(x0 + corner, y0);
+    ctx.arcTo(x0 + w, y0, x0 + w, y0 + w, corner);
+    ctx.arcTo(x0 + w, y0 + w, x0, y0 + w, corner);
+    ctx.arcTo(x0, y0 + w, x0, y0, corner);
+    ctx.arcTo(x0, y0, x0 + w, y0, corner);
+    ctx.closePath();
+  };
+  ctx.save();
+  roundedTile();
+  ctx.clip();
+  const bg = ctx.createLinearGradient(0, y0, 0, y0 + w);
+  bg.addColorStop(0, rgba(0.06, 0.09, 0.18));
+  bg.addColorStop(1, rgba(0.01, 0.015, 0.04));
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, 1024, 1024);
+
+  // Eclipse
+  const cx = 512, cy = 512, radius = 250;
+  const litY = cy - radius * 0.10;  // brighter towards the top
+  const cyan = [0.42, 0.80, 1.0], deep = [0.12, 0.38, 0.95];
+
+  ctx.globalCompositeOperation = 'lighter';
+  radial(cx, litY, radius * 1.9, [[0.42, rgba(...deep, 0)], [0.6, rgba(...deep, 0.62)], [0.8, rgba(...deep, 0.22)], [1, rgba(...deep, 0)]]);
+  for (const [angle, reach, sz, alpha] of [[-Math.PI * 0.80, 1.18, 0.62, 0.34], [-Math.PI * 1.85, 1.22, 0.55, 0.26], [-Math.PI * 0.25, 1.15, 0.45, 0.20]]) {
+    const px = cx + Math.cos(angle) * radius * reach, py = cy + Math.sin(angle) * radius * reach;
+    radial(px, py, radius * sz, [[0, rgba(...cyan, alpha)], [1, rgba(...cyan, 0)]]);
+  }
+  radial(cx, litY, radius * 1.45, [[0.55, rgba(...cyan, 0)], [0.68, rgba(0.86, 0.95, 1, 0.85)], [0.78, rgba(...cyan, 0.6)], [1, rgba(...cyan, 0)]]);
+
+  ctx.globalCompositeOperation = 'source-over';
+  radial(cx, cy, radius, [[0, '#000'], [0.8, rgba(0.01, 0.01, 0.01)], [1, rgba(0.07, 0.05, 0.04)]]);
+
+  // Rim: faint all round, bright two-thirds of the way (clockwise from 12), with a spark.
+  const top = -Math.PI / 2, end = top + 0.68 * Math.PI * 2;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = rgba(0.86, 0.95, 1, 0.22); ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.strokeStyle = rgba(...cyan, 0.28); ctx.lineWidth = 24;
+  ctx.beginPath(); ctx.arc(cx, cy, radius, top, end); ctx.stroke();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.strokeStyle = rgba(0.86, 0.95, 1); ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.arc(cx, cy, radius, top, end); ctx.stroke();
+  ctx.strokeStyle = rgba(0.86, 0.95, 1, 0.4); ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx, cy, radius * 0.975, top, end); ctx.stroke();
+  const sx = cx + Math.cos(end) * radius, sy = cy + Math.sin(end) * radius;
+  ctx.globalCompositeOperation = 'lighter';
+  radial(sx, sy, 48, [[0, rgba(0.95, 0.99, 1, 0.95)], [0.35, rgba(...cyan, 0.55)], [1, rgba(...cyan, 0)]]);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(sx, sy, 6, 0, Math.PI * 2); ctx.fill();
+
+  // Small ▾ marker at 12 o'clock.
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.beginPath();
+  ctx.moveTo(cx - 9, cy - radius + 23); ctx.lineTo(cx + 9, cy - radius + 23); ctx.lineTo(cx, cy - radius + 38);
+  ctx.closePath(); ctx.fill();
+
+  // "Blackhole" thin, "TIMER" small spaced capitals.
+  if (withText) {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.shadowColor = rgba(...cyan, 0.55);
+    ctx.shadowBlur = 18 * s;
+    ctx.fillStyle = '#fff';
+    ctx.font = '100 92px "Inter Display", "Inter", "Segoe UI", sans-serif';
+    ctx.fillText('Blackhole', cx, cy + 14);
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.font = '400 38px "Inter", "Segoe UI", sans-serif';
+    ctx.letterSpacing = '16px';
+    ctx.fillText('TIMER', cx + 8, cy + 72);
+    ctx.letterSpacing = '0px';
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+  return canvas.toDataURL('image/png');
+}
+</script>
